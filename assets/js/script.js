@@ -137,8 +137,15 @@ async function handleSubmit(e) {
 
     try {
         console.log('Submitting form...');
+        
+        // Get CSRF token from meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        
         const response = await fetch('process.php?action=createEntry', {
             method: 'POST',
+            headers: {
+                'X-CSRF-Token': csrfToken || ''
+            },
             body: formData
         });
 

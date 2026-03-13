@@ -6,7 +6,7 @@
  * - OJT entry creation with title, description, and multiple images
  * - Qwen API integration for image analysis and description enhancement
  * - Database operations for OJT journal entries
- * 
+ *
  * Security Features:
  * - CSRF protection
  * - Input validation and sanitization
@@ -45,9 +45,9 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         requireCSRFValidation();
     }
-    
+
     $action = $_GET['action'] ?? '';
-    
+
     // Rate limiting for write operations
     $writeActions = ['createEntry', 'delete', 'updateDescription', 'generateISPSCReport', 'generateNarrative'];
     if (in_array($action, $writeActions)) {
@@ -59,7 +59,7 @@ try {
             ], 429);
         }
     }
-    
+
     Logger::info('Request received', ['action' => $action, 'method' => $_SERVER['REQUEST_METHOD']]);
 
     switch ($action) {
@@ -103,7 +103,7 @@ try {
         'message' => $e->getMessage(),
         'code' => $e->getCode()
     ]);
-    
+
     $statusCode = $e->getCode() !== 0 ? $e->getCode() : 500;
     jsonResponse(['error' => $e->getMessage()], $statusCode);
 } catch (Throwable $e) {
@@ -113,7 +113,7 @@ try {
         'file' => $e->getFile(),
         'line' => $e->getLine()
     ]);
-    
+
     jsonResponse(['error' => 'Server error occurred'], 500);
 } finally {
     // Log request completion
@@ -126,7 +126,7 @@ try {
  */
 function createOJTEntry() {
     $requestStart = microtime(true);
-    
+
     if (!isApiKeyConfigured()) {
         Logger::error('API key not configured');
         jsonResponse(['error' => 'API key not configured'], 500);
@@ -136,13 +136,13 @@ function createOJTEntry() {
     $title = sanitizeInput($_POST['title'] ?? '', 'text', 200);
     $userDescription = sanitizeInput($_POST['description'] ?? '', 'text', 2000);
     $entryDate = sanitizeInput($_POST['entry_date'] ?? '', 'date');
-    
+
     // Validate required fields
     if (empty($title)) {
         Logger::warning('Create entry failed - missing title', ['post' => $_POST]);
         jsonResponse(['error' => 'Title is required'], 400);
     }
-    
+
     if (strlen($title) < 3) {
         jsonResponse(['error' => 'Title must be at least 3 characters'], 400);
     }
@@ -150,7 +150,7 @@ function createOJTEntry() {
     if (!$entryDate) {
         jsonResponse(['error' => 'Invalid date format. Use YYYY-MM-DD'], 400);
     }
-    
+
     // Validate date is not in the future
     if (strtotime($entryDate) > strtotime('tomorrow')) {
         jsonResponse(['error' => 'Date cannot be in the future'], 400);
@@ -160,7 +160,7 @@ function createOJTEntry() {
     if (empty($_FILES['images']) || empty($_FILES['images']['name'][0])) {
         jsonResponse(['error' => 'At least one image is required'], 400);
     }
-    
+
     // Validate number of images
     $uploadCount = count($_FILES['images']['name']);
     if ($uploadCount > 10) {
@@ -193,7 +193,7 @@ function createOJTEntry() {
         // Process images with validation
         $imageResults = [];
         $validImageCount = 0;
-        
+
         for ($i = 0; $i < $uploadCount; $i++) {
             $file = [
                 'name' => $_FILES['images']['name'][$i],
@@ -205,7 +205,7 @@ function createOJTEntry() {
 
             // Validate image using security helper
             $validation = validateImageUpload($file);
-            
+
             if (!$validation['valid']) {
                 Logger::warning('Image validation failed', [
                     'file' => $file['name'],
@@ -214,22 +214,22 @@ function createOJTEntry() {
                 $imageResults[] = ['error' => $validation['error'], 'file' => $file['name']];
                 continue;
             }
-            
+
             // Move file securely
             $moveResult = moveUploadedFileSecurely($file, UPLOAD_DIR, $validation['secure_name']);
-            
+
             if (!$moveResult['success']) {
                 Logger::error('Failed to move uploaded file', ['file' => $file['name']]);
                 $imageResults[] = ['error' => $moveResult['error'], 'file' => $file['name']];
                 continue;
             }
-            
+
             $validImageCount++;
             $imagePath = $moveResult['url'];
 
             // Analyze image with AI
             $aiDescription = analyzeImageWithQwen($imagePath);
-            
+
             if (is_array($aiDescription) && isset($aiDescription['error'])) {
                 Logger::warning('AI analysis failed', ['image' => $imagePath]);
                 $aiDescription = 'Image uploaded but analysis unavailable';
@@ -240,7 +240,7 @@ function createOJTEntry() {
                 INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
                 VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
             ");
-            
+
             $stmt->execute([
                 ':entry_id' => $entryId,
                 ':image_path' => $imagePath,
@@ -255,7 +255,7 @@ function createOJTEntry() {
                 'ai_description' => is_string($aiDescription) ? $aiDescription : null
             ];
         }
-        
+
         if ($validImageCount === 0) {
             // Delete entry if no valid images
             $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id");
@@ -280,7 +280,7 @@ function createOJTEntry() {
             ':ai_desc' => $enhancedDescription,
             ':id' => $entryId
         ]);
-        
+
         $duration = round((microtime(true) - $requestStart) * 1000, 2);
         Logger::info('Entry creation completed', [
             'entry_id' => $entryId,
@@ -294,7 +294,7 @@ function createOJTEntry() {
             'images_processed' => $validImageCount,
             'images' => $imageResults
         ]);
-        
+
     } catch (PDOException $e) {
         Logger::error('Database error in createOJTEntry', ['error' => $e->getMessage()]);
         jsonResponse(['error' => 'Database error occurred'], 500);
@@ -394,14 +394,14 @@ function analyzeImageWithQwen($imagePath) {
 
     // Use fallback mechanism
     $result = callAIWithFallback($requestData, QWEN_VISION_MODEL, FALLBACK_VISION_MODEL, AI_TIMEOUT);
-    
+
     if ($result['success']) {
         if ($result['used_fallback']) {
             error_log("Image analysis used fallback model: " . $result['model']);
         }
         return $result['content'];
     }
-    
+
     return ['error' => $result['error']];
 }
 
@@ -412,13 +412,13 @@ function analyzeImageWithQwen($imagePath) {
 function cleanDescription($text) {
     // Remove "Title:" prefix and anything before first newline
     $text = preg_replace('/^Title:\s*[^\n]+\n/i', '', $text);
-    
+
     // Remove bullet point patterns at the start
     $text = preg_replace('/^[\-\*•]\s*/m', '', $text);
-    
+
     // Remove numbered list patterns at the start
     $text = preg_replace('/^\d+\.\s*/m', '', $text);
-    
+
     // Remove common unwanted phrases at the beginning
     $unwantedPatterns = [
         '/^Here\'s? a\s+/i',
@@ -428,11 +428,11 @@ function cleanDescription($text) {
         '/^This (entry|journal|post|report) (covers|describes|shows|discusses)/i',
         '/^This (session|meeting|day|week) (covers|describes|shows|discusses)/i',
     ];
-    
+
     foreach ($unwantedPatterns as $pattern) {
         $text = preg_replace($pattern, '', $text);
     }
-    
+
     // Remove lines that are just labels or headers
     $lines = explode("\n", $text);
     $filteredLines = array_filter($lines, function($line) {
@@ -442,12 +442,12 @@ function cleanDescription($text) {
         if (preg_match('/^[\-\*•]$/', $trimmed)) return false;
         return true;
     });
-    
+
     $text = implode("\n", $filteredLines);
-    
+
     // Clean up multiple newlines
     $text = preg_replace('/\n{3,}/', "\n\n", $text);
-    
+
     return trim($text);
 }
 
@@ -472,7 +472,7 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
     // Combine user description with AI image analysis
     $imageContext = implode('. ', $aiDescriptions);
     $enhancedDescription = enhanceUserDescriptionWithAI($userDescription, $title, $imageContext);
-    
+
     return $enhancedDescription;
 }
 
@@ -483,11 +483,11 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
     // Optimized prompt: direct, token-efficient
     $prompt = "Enhance this OJT journal entry for a weekly report. Make it professional and detailed.\n\n";
     $prompt .= "Entry: {$userDescription}\n";
-    
+
     if (!empty($imageContext)) {
         $prompt .= "Image context: {$imageContext}\n";
     }
-    
+
     $prompt .= "\nWrite 2 paragraphs: (1) what was done, (2) skills learned. Professional tone. No titles, bullets, or 'Here's/In this'.";
 
     $requestData = [
@@ -503,7 +503,7 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
 
     // Use fallback mechanism
     $result = callAIWithFallback($requestData, QWEN_TEXT_MODEL, FALLBACK_TEXT_MODEL, AI_TIMEOUT);
-    
+
     if ($result['success']) {
         if ($result['used_fallback']) {
             error_log("Enhance description used fallback model: " . $result['model']);
@@ -772,7 +772,7 @@ function generateISPSCReport() {
     $endDate = date('M j, Y', strtotime(end($entries)['entry_date']));
     $totalDays = count($entries);
 
-    // Generate Chapter I: Company Profile (AI-powered based on ALL entries)
+    // Generate Chapter I: Company Profile (... [truncated]
     $chapter1Prompt = "From these OJT entries, write Chapter I (3 sections, 2-3 sentences each):\n";
     $chapter1Prompt .= "1. INTRODUCTION - Infer company name, location, nature of business from entries\n";
     $chapter1Prompt .= "2. DURATION - Use the date range from entries\n";
@@ -883,35 +883,35 @@ function generateDownloadReport() {
 function bulkDelete() {
     $input = json_decode(file_get_contents('php://input'), true);
     $ids = $input['ids'] ?? [];
-    
+
     if (empty($ids)) {
         jsonResponse(['error' => 'No entry IDs provided'], 400);
     }
-    
+
     // Validate IDs are integers
     $ids = array_map('intval', $ids);
     $ids = array_filter($ids, function($id) { return $id > 0; });
-    
+
     if (empty($ids)) {
         jsonResponse(['error' => 'Invalid entry IDs'], 400);
     }
-    
+
     $pdo = getDbConnection();
-    
+
     try {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id IN ($placeholders)");
         $stmt->execute($ids);
-        
+
         $deletedCount = $stmt->rowCount();
-        
+
         Logger::info('Bulk delete completed', ['deleted' => $deletedCount, 'requested' => count($ids)]);
-        
+
         jsonResponse([
             'success' => true,
             'deleted_count' => $deletedCount
         ]);
-        
+
     } catch (PDOException $e) {
         Logger::error('Bulk delete failed', ['error' => $e->getMessage()]);
         jsonResponse(['error' => 'Failed to delete entries'], 500);
@@ -941,7 +941,7 @@ function getUploadErrorMessage($errorCode) {
 function jsonResponse($data, $statusCode = 200) {
     // Clear any buffered output
     ob_end_clean();
-    
+
     // Send JSON response
     http_response_code($statusCode);
     header('Content-Type: application/json');

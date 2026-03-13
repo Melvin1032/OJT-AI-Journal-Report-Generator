@@ -1,19 +1,23 @@
+<?php
+require_once 'config/config.php';
+$csrfToken = generateCSRFToken();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Document your On-the-Job Training journey with AI-powered enhancements">
-    <meta name="csrf-token" content="<?php require_once '../config/config.php'; echo generateCSRFToken(); ?>">
+    <meta name="csrf-token" content="<?php echo $csrfToken; ?>">
     <title>OJT Journal Report Generator</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/print-styles.css">
-    <link rel="stylesheet" href="../assets/css/enhancements.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/print-styles.css">
+    <link rel="stylesheet" href="assets/css/enhancements.css">
 </head>
 <body>
     <!-- Screen Reader Announcer -->
     <div id="sr-announcer" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
-    
+
     <div class="container">
         <header class="header">
             <div class="header-content">
@@ -49,9 +53,9 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="entryTitle">Entry Title *</label>
-                            <input type="text" id="entryTitle" name="title" 
-                                   placeholder="e.g., Website Development - Day 1" 
-                                   required 
+                            <input type="text" id="entryTitle" name="title"
+                                   placeholder="e.g., Website Development - Day 1"
+                                   required
                                    aria-required="true"
                                    aria-describedby="title-hint"
                                    autocomplete="off">
@@ -59,26 +63,26 @@
                         </div>
                         <div class="form-group">
                             <label for="entryDate">Date *</label>
-                            <input type="date" id="entryDate" name="entry_date" 
-                                   required 
+                            <input type="date" id="entryDate" name="entry_date"
+                                   required
                                    aria-required="true">
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="entryDescription">Your Description</label>
-                        <textarea id="entryDescription" name="description" rows="3" 
+                        <textarea id="entryDescription" name="description" rows="3"
                                   placeholder="Briefly describe what you did today, tasks completed, challenges faced, and skills learned..."
                                   aria-describedby="desc-hint"></textarea>
                         <span id="desc-hint" class="form-hint">AI will enhance this description with analysis from your images</span>
                     </div>
 
-                    <div class="upload-area" id="uploadArea" 
-                         role="button" 
+                    <div class="upload-area" id="uploadArea"
+                         role="button"
                          tabindex="0"
                          aria-label="Upload images. Press Enter to browse or drag and drop files here"
                          aria-describedby="upload-hint">
-                        <input type="file" id="imageInput" accept="image/*" multiple hidden 
+                        <input type="file" id="imageInput" accept="image/*" multiple hidden
                                aria-label="Select images">
                         <div class="upload-placeholder">
                             <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -93,7 +97,7 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary" id="submitBtn" 
+                        <button type="submit" class="btn btn-primary" id="submitBtn"
                                 aria-busy="false">
                             <span class="btn-text">Create Entry</span>
                             <span class="btn-loader hidden" aria-hidden="true"></span>
@@ -290,8 +294,8 @@
         </div>
     </div>
 
-    <script src="../assets/js/utils.js"></script>
-    <script src="../assets/js/script.js"></script>
-    <script src="../assets/js/print-report.js"></script>
+    <script src="assets/js/utils.js"></script>
+    <script src="assets/js/script.js"></script>
+    <script src="assets/js/print-report.js"></script>
 </body>
 </html>
