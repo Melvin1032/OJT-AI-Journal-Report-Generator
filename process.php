@@ -6,35 +6,61 @@
  * - OJT entry creation with title, description, and multiple images
  * - Qwen API integration for image analysis and description enhancement
  * - Database operations for OJT journal entries
+ * 
+ * Security Features:
+ * - CSRF protection
+ * - Input validation and sanitization
+ * - Rate limiting
+ * - Secure file uploads
+ * - Comprehensive logging
  */
 
-// Start output buffering to catch any stray output
-ob_start();
-
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0); // Don't display errors in production
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/php_errors.log');
+
+header('Content-Type: application/json');
 
 // Catch fatal errors and return as JSON
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && ($error['type'] === E_ERROR || $error['type'] === E_PARSE)) {
-        ob_end_clean();
+        Logger::error('Fatal Error', ['message' => $error['message']]);
         http_response_code(500);
-        header('Content-Type: application/json');
-        echo json_encode(['error' => 'Server error: ' . $error['message']]);
+        echo json_encode(['error' => 'Server error occurred']);
     }
 });
 
-header('Content-Type: application/json');
 require_once 'config.php';
+
+// Log request start
+$requestStart = microtime(true);
+$startTime = Date('Y-m-d H:i:s');
 
 /**
  * Main request handler
  */
 try {
+    // Validate CSRF for POST requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        requireCSRFValidation();
+    }
+    
     $action = $_GET['action'] ?? '';
+    
+    // Rate limiting for write operations
+    $writeActions = ['createEntry', 'delete', 'updateDescription', 'generateISPSCReport', 'generateNarrative'];
+    if (in_array($action, $writeActions)) {
+        if (!checkRateLimit($action, 10, 60)) { // 10 requests per minute
+            $limitInfo = getRateLimitInfo($action);
+            Logger::security('Rate limit exceeded', ['action' => $action, 'limit' => $limitInfo]);
+            jsonResponse([
+                'error' => 'Rate limit exceeded. Try again in ' . ($limitInfo['reset'] - time()) . ' seconds'
+            ], 429);
+        }
+    }
+    
+    Logger::info('Request received', ['action' => $action, 'method' => $_SERVER['REQUEST_METHOD']]);
 
     switch ($action) {
         case 'createEntry':
@@ -58,96 +84,221 @@ try {
         case 'generateDownloadReport':
             generateDownloadReport();
             break;
+        case 'getCSRFToken':
+            // Return CSRF token for AJAX requests
+            echo getCSRFTokenJSON();
+            break;
+        case 'bulkDelete':
+            bulkDelete();
+            break;
         default:
-            jsonResponse(['error' => 'Invalid action'], 400);
+            if (empty($action)) {
+                jsonResponse(['error' => 'No action specified', 'hint' => 'Use ?action=createEntry, ?action=getWeekly, etc.'], 400);
+            }
+            jsonResponse(['error' => 'Invalid action: ' . htmlspecialchars($action)], 400);
     }
+} catch (Exception $e) {
+    Logger::error('Request exception', [
+        'action' => $action ?? 'unknown',
+        'message' => $e->getMessage(),
+        'code' => $e->getCode()
+    ]);
+    
+    $statusCode = $e->getCode() !== 0 ? $e->getCode() : 500;
+    jsonResponse(['error' => $e->getMessage()], $statusCode);
 } catch (Throwable $e) {
-    jsonResponse(['error' => 'Server error: ' . $e->getMessage()], 500);
+    Logger::error('Server error', [
+        'action' => $action ?? 'unknown',
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
+    
+    jsonResponse(['error' => 'Server error occurred'], 500);
+} finally {
+    // Log request completion
+    $duration = round((microtime(true) - $requestStart) * 1000, 2);
+    Logger::apiRequest($action ?? 'unknown', 'completed', $duration);
 }
 
 /**
  * Create OJT entry with title, description, and multiple images
  */
 function createOJTEntry() {
+    $requestStart = microtime(true);
+    
     if (!isApiKeyConfigured()) {
-        jsonResponse(['error' => 'API key not configured. Please set your Qwen API key in config.php'], 500);
+        Logger::error('API key not configured');
+        jsonResponse(['error' => 'API key not configured'], 500);
     }
 
-    $title = $_POST['title'] ?? '';
-    $userDescription = $_POST['description'] ?? '';
-    $entryDate = $_POST['entry_date'] ?? date('Y-m-d');
-
-    // Validate title
+    // Validate and sanitize inputs
+    $title = sanitizeInput($_POST['title'] ?? '', 'text', 200);
+    $userDescription = sanitizeInput($_POST['description'] ?? '', 'text', 2000);
+    $entryDate = sanitizeInput($_POST['entry_date'] ?? '', 'date');
+    
+    // Validate required fields
     if (empty($title)) {
+        Logger::warning('Create entry failed - missing title', ['post' => $_POST]);
         jsonResponse(['error' => 'Title is required'], 400);
     }
+    
+    if (strlen($title) < 3) {
+        jsonResponse(['error' => 'Title must be at least 3 characters'], 400);
+    }
 
-    // Validate date format
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $entryDate)) {
-        jsonResponse(['error' => 'Invalid date format'], 400);
+    if (!$entryDate) {
+        jsonResponse(['error' => 'Invalid date format. Use YYYY-MM-DD'], 400);
+    }
+    
+    // Validate date is not in the future
+    if (strtotime($entryDate) > strtotime('tomorrow')) {
+        jsonResponse(['error' => 'Date cannot be in the future'], 400);
     }
 
     // Check if images were uploaded
     if (empty($_FILES['images']) || empty($_FILES['images']['name'][0])) {
         jsonResponse(['error' => 'At least one image is required'], 400);
     }
+    
+    // Validate number of images
+    $uploadCount = count($_FILES['images']['name']);
+    if ($uploadCount > 10) {
+        jsonResponse(['error' => 'Maximum 10 images allowed per entry'], 400);
+    }
 
     $pdo = getDbConnection();
 
-    // Create the OJT entry first
-    $stmt = $pdo->prepare("
-        INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at)
-        VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at)
-    ");
+    try {
+        // Create the OJT entry first
+        $stmt = $pdo->prepare("
+            INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at)
+            VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at)
+        ");
 
-    // Generate initial enhanced description (will be updated after AI analysis)
-    $initialEnhanced = $userDescription ?: 'Image analysis pending...';
+        // Generate initial enhanced description (will be updated after AI analysis)
+        $initialEnhanced = $userDescription ?: 'Image analysis pending...';
 
-    $stmt->execute([
-        ':title' => $title,
-        ':user_desc' => $userDescription,
-        ':entry_date' => $entryDate,
-        ':ai_desc' => $initialEnhanced,
-        ':created_at' => date('Y-m-d H:i:s')
-    ]);
+        $stmt->execute([
+            ':title' => $title,
+            ':user_desc' => $userDescription,
+            ':entry_date' => $entryDate,
+            ':ai_desc' => $initialEnhanced,
+            ':created_at' => date('Y-m-d H:i:s')
+        ]);
 
-    $entryId = $pdo->lastInsertId();
+        $entryId = $pdo->lastInsertId();
+        Logger::info('Entry created', ['entry_id' => $entryId, 'title' => $title]);
 
-    // Process images
-    $uploadCount = count($_FILES['images']['name']);
-    $imageResults = [];
+        // Process images with validation
+        $imageResults = [];
+        $validImageCount = 0;
+        
+        for ($i = 0; $i < $uploadCount; $i++) {
+            $file = [
+                'name' => $_FILES['images']['name'][$i],
+                'type' => $_FILES['images']['type'][$i],
+                'tmp_name' => $_FILES['images']['tmp_name'][$i],
+                'error' => $_FILES['images']['error'][$i],
+                'size' => $_FILES['images']['size'][$i]
+            ];
 
-    for ($i = 0; $i < $uploadCount; $i++) {
-        $file = [
-            'name' => $_FILES['images']['name'][$i],
-            'type' => $_FILES['images']['type'][$i],
-            'tmp_name' => $_FILES['images']['tmp_name'][$i],
-            'error' => $_FILES['images']['error'][$i],
-            'size' => $_FILES['images']['size'][$i]
-        ];
+            // Validate image using security helper
+            $validation = validateImageUpload($file);
+            
+            if (!$validation['valid']) {
+                Logger::warning('Image validation failed', [
+                    'file' => $file['name'],
+                    'error' => $validation['error']
+                ]);
+                $imageResults[] = ['error' => $validation['error'], 'file' => $file['name']];
+                continue;
+            }
+            
+            // Move file securely
+            $moveResult = moveUploadedFileSecurely($file, UPLOAD_DIR, $validation['secure_name']);
+            
+            if (!$moveResult['success']) {
+                Logger::error('Failed to move uploaded file', ['file' => $file['name']]);
+                $imageResults[] = ['error' => $moveResult['error'], 'file' => $file['name']];
+                continue;
+            }
+            
+            $validImageCount++;
+            $imagePath = $moveResult['url'];
 
-        $result = processImage($file, $entryId, $i);
-        $imageResults[] = $result;
+            // Analyze image with AI
+            $aiDescription = analyzeImageWithQwen($imagePath);
+            
+            if (is_array($aiDescription) && isset($aiDescription['error'])) {
+                Logger::warning('AI analysis failed', ['image' => $imagePath]);
+                $aiDescription = 'Image uploaded but analysis unavailable';
+            }
+
+            // Save to database
+            $stmt = $pdo->prepare("
+                INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
+                VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
+            ");
+            
+            $stmt->execute([
+                ':entry_id' => $entryId,
+                ':image_path' => $imagePath,
+                ':order' => $i,
+                ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
+                ':created_at' => date('Y-m-d H:i:s')
+            ]);
+
+            $imageResults[] = [
+                'success' => true,
+                'image_path' => $imagePath,
+                'ai_description' => is_string($aiDescription) ? $aiDescription : null
+            ];
+        }
+        
+        if ($validImageCount === 0) {
+            // Delete entry if no valid images
+            $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id");
+            $stmt->execute([':id' => $entryId]);
+            jsonResponse(['error' => 'No valid images uploaded'], 400);
+        }
+
+        // Collect all AI descriptions for enhancement
+        $aiDescriptions = [];
+        foreach ($imageResults as $result) {
+            if (isset($result['ai_description']) && is_string($result['ai_description'])) {
+                $aiDescriptions[] = $result['ai_description'];
+            }
+        }
+
+        // Generate enhanced description combining user input and AI analysis
+        $enhancedDescription = generateEnhancedDescription($userDescription, $aiDescriptions, $title);
+
+        // Update the entry with enhanced description
+        $stmt = $pdo->prepare("UPDATE ojt_entries SET ai_enhanced_description = :ai_desc WHERE id = :id");
+        $stmt->execute([
+            ':ai_desc' => $enhancedDescription,
+            ':id' => $entryId
+        ]);
+        
+        $duration = round((microtime(true) - $requestStart) * 1000, 2);
+        Logger::info('Entry creation completed', [
+            'entry_id' => $entryId,
+            'images' => $validImageCount,
+            'duration_ms' => $duration
+        ]);
+
+        jsonResponse([
+            'success' => true,
+            'entry_id' => $entryId,
+            'images_processed' => $validImageCount,
+            'images' => $imageResults
+        ]);
+        
+    } catch (PDOException $e) {
+        Logger::error('Database error in createOJTEntry', ['error' => $e->getMessage()]);
+        jsonResponse(['error' => 'Database error occurred'], 500);
     }
-
-    // Collect all AI descriptions for enhancement
-    $aiDescriptions = array_filter(array_column($imageResults, 'ai_description'));
-    
-    // Generate enhanced description combining user input and AI analysis
-    $enhancedDescription = generateEnhancedDescription($userDescription, $aiDescriptions, $title);
-    
-    // Update the entry with enhanced description
-    $stmt = $pdo->prepare("UPDATE ojt_entries SET ai_enhanced_description = :ai_desc WHERE id = :id");
-    $stmt->execute([
-        ':ai_desc' => $enhancedDescription,
-        ':id' => $entryId
-    ]);
-
-    jsonResponse([
-        'success' => true,
-        'entry_id' => $entryId,
-        'images' => $imageResults
-    ]);
 }
 
 /**
@@ -724,6 +875,47 @@ function generateDownloadReport() {
             'student_name' => $studentName
         ]
     ]);
+}
+
+/**
+ * Bulk delete multiple entries
+ */
+function bulkDelete() {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $ids = $input['ids'] ?? [];
+    
+    if (empty($ids)) {
+        jsonResponse(['error' => 'No entry IDs provided'], 400);
+    }
+    
+    // Validate IDs are integers
+    $ids = array_map('intval', $ids);
+    $ids = array_filter($ids, function($id) { return $id > 0; });
+    
+    if (empty($ids)) {
+        jsonResponse(['error' => 'Invalid entry IDs'], 400);
+    }
+    
+    $pdo = getDbConnection();
+    
+    try {
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id IN ($placeholders)");
+        $stmt->execute($ids);
+        
+        $deletedCount = $stmt->rowCount();
+        
+        Logger::info('Bulk delete completed', ['deleted' => $deletedCount, 'requested' => count($ids)]);
+        
+        jsonResponse([
+            'success' => true,
+            'deleted_count' => $deletedCount
+        ]);
+        
+    } catch (PDOException $e) {
+        Logger::error('Bulk delete failed', ['error' => $e->getMessage()]);
+        jsonResponse(['error' => 'Failed to delete entries'], 500);
+    }
 }
 
 /**

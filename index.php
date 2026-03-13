@@ -3,11 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Document your On-the-Job Training journey with AI-powered enhancements">
+    <meta name="csrf-token" content="<?php require_once 'config.php'; echo generateCSRFToken(); ?>">
     <title>OJT Journal Report Generator</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="print-styles.css">
+    <link rel="stylesheet" href="enhancements.css">
 </head>
 <body>
+    <!-- Screen Reader Announcer -->
+    <div id="sr-announcer" role="status" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+    
     <div class="container">
         <header class="header">
             <div class="header-content">
@@ -15,8 +21,8 @@
                     <h1>📔 OJT Journal Report Generator</h1>
                     <p class="subtitle">Document your On-the-Job Training journey</p>
                 </div>
-                <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode">
-                    <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode" aria-label="Toggle dark mode">
+                    <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <circle cx="12" cy="12" r="5"/>
                         <line x1="12" y1="1" x2="12" y2="3"/>
                         <line x1="12" y1="21" x2="12" y2="23"/>
@@ -27,7 +33,7 @@
                         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
                         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
                     </svg>
-                    <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                     </svg>
                 </button>
@@ -38,29 +44,44 @@
         <section class="entry-section">
             <div class="entry-card">
                 <h2>📝 New OJT Entry</h2>
-                
-                <form id="ojtForm" class="ojt-form">
+
+                <form id="ojtForm" class="ojt-form" novalidate>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="entryTitle">Entry Title *</label>
-                            <input type="text" id="entryTitle" name="title" placeholder="e.g., Website Development - Day 1" required>
+                            <input type="text" id="entryTitle" name="title" 
+                                   placeholder="e.g., Website Development - Day 1" 
+                                   required 
+                                   aria-required="true"
+                                   aria-describedby="title-hint"
+                                   autocomplete="off">
+                            <span id="title-hint" class="form-hint">Minimum 3 characters</span>
                         </div>
                         <div class="form-group">
                             <label for="entryDate">Date *</label>
-                            <input type="date" id="entryDate" name="entry_date" required>
+                            <input type="date" id="entryDate" name="entry_date" 
+                                   required 
+                                   aria-required="true">
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="entryDescription">Your Description</label>
-                        <textarea id="entryDescription" name="description" rows="3" placeholder="Briefly describe what you did today, tasks completed, challenges faced, and skills learned..."></textarea>
-                        <span class="form-hint">AI will enhance this description with analysis from your images</span>
+                        <textarea id="entryDescription" name="description" rows="3" 
+                                  placeholder="Briefly describe what you did today, tasks completed, challenges faced, and skills learned..."
+                                  aria-describedby="desc-hint"></textarea>
+                        <span id="desc-hint" class="form-hint">AI will enhance this description with analysis from your images</span>
                     </div>
 
-                    <div class="upload-area" id="uploadArea">
-                        <input type="file" id="imageInput" accept="image/*" multiple hidden>
+                    <div class="upload-area" id="uploadArea" 
+                         role="button" 
+                         tabindex="0"
+                         aria-label="Upload images. Press Enter to browse or drag and drop files here"
+                         aria-describedby="upload-hint">
+                        <input type="file" id="imageInput" accept="image/*" multiple hidden 
+                               aria-label="Select images">
                         <div class="upload-placeholder">
-                            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                 <polyline points="17 8 12 3 7 8"/>
                                 <line x1="12" y1="3" x2="12" y2="15"/>
@@ -68,18 +89,19 @@
                             <p>Drag & drop images here or <span class="browse-link">browse</span></p>
                             <p class="upload-hint">Supports: JPEG, PNG, GIF, WebP (Max 5MB each)</p>
                         </div>
-                        <div class="preview-container" id="previewContainer"></div>
+                        <div class="preview-container" id="previewContainer" role="list" aria-label="Image previews"></div>
                     </div>
 
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <button type="submit" class="btn btn-primary" id="submitBtn" 
+                                aria-busy="false">
                             <span class="btn-text">Create Entry</span>
-                            <span class="btn-loader hidden"></span>
+                            <span class="btn-loader hidden" aria-hidden="true"></span>
                         </button>
                         <button type="button" class="btn btn-secondary" id="clearBtn">Clear Form</button>
                     </div>
 
-                    <div class="status-message" id="statusMessage"></div>
+                    <div class="status-message" id="statusMessage" role="alert" aria-live="polite"></div>
                 </form>
             </div>
         </section>
@@ -251,6 +273,24 @@
         </div>
     </div>
 
+    <!-- Bulk Action Bar -->
+    <div class="bulk-action-bar hidden" id="bulkActionBar" role="region" aria-label="Bulk actions">
+        <span class="bulk-action-count" id="bulkActionCount">0 selected</span>
+        <div class="bulk-action-buttons">
+            <button class="btn btn-danger" id="bulkDeleteBtn" aria-label="Delete selected entries">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+                Delete Selected
+            </button>
+            <button class="btn btn-outline" id="bulkClearBtn" aria-label="Clear selection">Clear</button>
+        </div>
+    </div>
+
+    <script src="utils.js"></script>
     <script src="script.js"></script>
     <script src="print-report.js"></script>
 </body>

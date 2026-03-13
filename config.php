@@ -5,6 +5,13 @@
  * API credentials are loaded from .env file.
  */
 
+// Load security and logging
+require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/logger.php';
+
+// Start output buffering for security
+ob_start();
+
 // Load environment variables from .env file
 $envFile = __DIR__ . '/.env';
 if (file_exists($envFile)) {
