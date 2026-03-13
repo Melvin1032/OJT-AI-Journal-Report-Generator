@@ -146,7 +146,7 @@ function checkRateLimit($action, $limit = 10, $timeWindow = 60) {
     $key = "rate_limit:" . md5("{$ip}:{$action}");
     
     // Use file-based storage for rate limiting data
-    $cacheDir = __DIR__ . '/cache/rate_limits';
+    $cacheDir = __DIR__ . '/../storage/cache/rate_limits';
     if (!is_dir($cacheDir)) {
         mkdir($cacheDir, 0755, true);
     }
@@ -184,7 +184,7 @@ function checkRateLimit($action, $limit = 10, $timeWindow = 60) {
 function getRateLimitInfo($action) {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     $key = "rate_limit:" . md5("{$ip}:{$action}");
-    $cacheFile = __DIR__ . '/cache/rate_limits/' . md5($key) . '.json';
+    $cacheFile = __DIR__ . '/../storage/cache/rate_limits/' . md5($key) . '.json';
     
     if (file_exists($cacheFile)) {
         $data = json_decode(file_get_contents($cacheFile), true);
@@ -385,7 +385,7 @@ function generateSecureToken($length = 32) {
  * @return int Number of files removed
  */
 function cleanRateLimitCache($olderThan = 86400) {
-    $cacheDir = __DIR__ . '/cache/rate_limits';
+    $cacheDir = __DIR__ . '/../storage/cache/rate_limits';
     
     if (!is_dir($cacheDir)) {
         return 0;

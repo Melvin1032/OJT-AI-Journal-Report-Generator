@@ -4,11 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Document your On-the-Job Training journey with AI-powered enhancements">
-    <meta name="csrf-token" content="<?php require_once 'config.php'; echo generateCSRFToken(); ?>">
+    <meta name="csrf-token" content="<?php require_once '../config/config.php'; echo generateCSRFToken(); ?>">
     <title>OJT Journal Report Generator</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="print-styles.css">
-    <link rel="stylesheet" href="enhancements.css">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/print-styles.css">
+    <link rel="stylesheet" href="../assets/css/enhancements.css">
 </head>
 <body>
     <!-- Screen Reader Announcer -->
@@ -290,8 +290,8 @@
         </div>
     </div>
 
-    <script src="utils.js"></script>
-    <script src="script.js"></script>
-    <script src="print-report.js"></script>
+    <script src="../assets/js/utils.js"></script>
+    <script src="../assets/js/script.js"></script>
+    <script src="../assets/js/print-report.js"></script>
 </body>
 </html>

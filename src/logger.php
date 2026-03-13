@@ -5,9 +5,9 @@
  */
 
 class Logger {
-    private static $logFile = __DIR__ . '/logs/app.log';
-    private static $errorLogFile = __DIR__ . '/logs/error.log';
-    private static $accessLogFile = __DIR__ . '/logs/access.log';
+    private static $logFile = __DIR__ . '/../storage/logs/app.log';
+    private static $errorLogFile = __DIR__ . '/../storage/logs/error.log';
+    private static $accessLogFile = __DIR__ . '/../storage/logs/access.log';
     
     /**
      * Initialize logger

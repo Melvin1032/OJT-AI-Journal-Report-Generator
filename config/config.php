@@ -6,8 +6,8 @@
  */
 
 // Load security and logging
-require_once __DIR__ . '/security.php';
-require_once __DIR__ . '/logger.php';
+require_once __DIR__ . '/../src/security.php';
+require_once __DIR__ . '/../src/logger.php';
 
 // Start output buffering for security
 ob_start();
@@ -46,10 +46,10 @@ define('AI_MAX_RETRIES', (int)(getenv('AI_MAX_RETRIES') ?: $_ENV['AI_MAX_RETRIES
 define('AI_TIMEOUT', (int)(getenv('AI_TIMEOUT') ?: $_ENV['AI_TIMEOUT'] ?? 30));
 
 // Database Configuration
-define('DB_PATH', getenv('DB_PATH') ?: $_ENV['DB_PATH'] ?? __DIR__ . '/db/journal.db');
+define('DB_PATH', getenv('DB_PATH') ?: $_ENV['DB_PATH'] ?? __DIR__ . '/../storage/db/journal.db');
 
 // Upload Configuration
-define('UPLOAD_DIR', getenv('UPLOAD_DIR') ?: $_ENV['UPLOAD_DIR'] ?? __DIR__ . '/uploads/');
+define('UPLOAD_DIR', getenv('UPLOAD_DIR') ?: $_ENV['UPLOAD_DIR'] ?? __DIR__ . '/../storage/uploads/');
 define('MAX_FILE_SIZE', (int)(getenv('MAX_FILE_SIZE') ?: $_ENV['MAX_FILE_SIZE'] ?? 5 * 1024 * 1024)); // 5MB max
 define('ALLOWED_TYPES', explode(',', getenv('ALLOWED_TYPES') ?: $_ENV['ALLOWED_TYPES'] ?? 'image/jpeg,image/png,image/gif,image/webp'));
 
