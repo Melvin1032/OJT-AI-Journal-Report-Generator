@@ -1,0 +1,40 @@
+# Environment files (contains API keys and secrets)
+.env
+.env.local
+.env.*.local
+
+# Database files
+db/*.db
+db/*.db-journal
+db/*.db-shm
+db/*.db-wal
+
+# Uploaded files
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Composer dependencies (if using Composer)
+/vendor/
+
+# Node modules (if using npm/yarn)
+node_modules/
+package-lock.json
+yarn.lock
