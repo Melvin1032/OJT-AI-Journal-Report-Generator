@@ -28,6 +28,7 @@ const themeToggle = document.getElementById('themeToggle');
 // State
 let selectedFiles = [];
 let narrativeCache = null;
+let deleteCallback = null; // Store delete callback function
 
 // Set default date to today
 entryDate.valueAsDate = new Date();
@@ -95,6 +96,42 @@ function initializeEventListeners() {
 
     // Theme toggle
     themeToggle.addEventListener('click', toggleTheme);
+
+    // Confirmation modal buttons
+    initializeConfirmationModal();
+}
+
+/**
+ * Initialize confirmation modal
+ */
+function initializeConfirmationModal() {
+    const confirmModal = document.getElementById('confirmationModal');
+    const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+    const confirmActionBtn = document.getElementById('confirmActionBtn');
+    const overlay = confirmModal?.querySelector('.confirmation-overlay');
+
+    if (!confirmModal) return;
+
+    // Cancel button
+    confirmCancelBtn?.addEventListener('click', () => {
+        confirmModal.classList.remove('show');
+        deleteCallback = null;
+    });
+
+    // Action button (Delete)
+    confirmActionBtn?.addEventListener('click', () => {
+        if (deleteCallback) {
+            deleteCallback();
+        }
+        confirmModal.classList.remove('show');
+        deleteCallback = null;
+    });
+
+    // Click on overlay to close
+    overlay?.addEventListener('click', () => {
+        confirmModal.classList.remove('show');
+        deleteCallback = null;
+    });
 }
 
 /**
@@ -536,16 +573,120 @@ function showImageModal(imageSrc) {
 }
 
 /**
+ * Show confirmation modal
+ */
+function showConfirmation(title, message, actionLabel, callback, type = 'confirm') {
+    const confirmModal = document.getElementById('confirmationModal');
+    const confirmationTitle = document.getElementById('confirmationTitle');
+    const confirmationMessage = document.getElementById('confirmationMessage');
+    const confirmActionBtn = document.getElementById('confirmActionBtn');
+    const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+    const confirmationActions = document.getElementById('confirmationActions');
+    const confirmationIcon = document.getElementById('confirmationIcon');
+
+    if (!confirmModal) return;
+
+    // Update modal content
+    if (confirmationTitle) confirmationTitle.textContent = title;
+    if (confirmationMessage) confirmationMessage.textContent = message;
+    
+    // Update action button label and icon
+    if (confirmActionBtn) {
+        const svgIcon = confirmActionBtn.querySelector('svg');
+        const btnText = confirmActionBtn.childNodes[confirmActionBtn.childNodes.length - 1];
+        
+        if (type === 'alert') {
+            // OK button - no icon, just text
+            if (svgIcon) svgIcon.style.display = 'none';
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = 'OK';
+            }
+            confirmActionBtn.className = 'btn btn-primary';
+        } else {
+            // Delete/Action button - with icon
+            if (svgIcon) svgIcon.style.display = 'block';
+            if (btnText && btnText.nodeType === Node.TEXT_NODE) {
+                btnText.textContent = actionLabel;
+            }
+            confirmActionBtn.className = 'btn btn-danger';
+        }
+    }
+
+    // Show/hide cancel button based on type
+    if (confirmCancelBtn && confirmationActions) {
+        if (type === 'alert') {
+            confirmCancelBtn.style.display = 'none';
+            confirmationActions.style.justifyContent = 'center';
+        } else {
+            confirmCancelBtn.style.display = 'block';
+            confirmationActions.style.justifyContent = 'center';
+        }
+    }
+
+    // Update icon based on type
+    if (confirmationIcon) {
+        if (type === 'alert') {
+            // Info icon for alerts
+            confirmationIcon.style.background = 'var(--primary-color)';
+            confirmationIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+            `;
+        } else {
+            // Warning icon for confirmations
+            confirmationIcon.style.background = 'var(--error-color)';
+            confirmationIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            `;
+        }
+    }
+
+    // Store callback
+    deleteCallback = callback;
+
+    // Show modal
+    confirmModal.classList.add('show');
+}
+
+/**
+ * Show alert modal (simplified confirmation with just OK button)
+ */
+function showAlert(title, message, callback = null) {
+    showConfirmation(title, message, '', callback, 'alert');
+}
+
+/**
  * Delete an entry
  */
-async function deleteEntry(id, cardElement) {
-    if (!confirm('Are you sure you want to delete this entry?')) return;
+function deleteEntry(id, cardElement) {
+    showConfirmation(
+        'Delete Entry?',
+        'Are you sure you want to delete this entry? This action cannot be undone.',
+        'Delete',
+        () => performDelete(id, cardElement)
+    );
+}
 
+/**
+ * Perform the actual delete operation
+ */
+async function performDelete(id, cardElement) {
     try {
+        // Get CSRF token from meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
         const response = await fetch('process.php?action=delete', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken || ''
             },
             body: JSON.stringify({ id })
         });
@@ -560,7 +701,7 @@ async function deleteEntry(id, cardElement) {
                 cardElement.remove();
                 const entries = reportGrid.querySelectorAll('.ojt-entry-card');
                 entryCount.textContent = `${entries.length} entr${entries.length !== 1 ? 'ies' : 'y'}`;
-                
+
                 if (entries.length === 0) {
                     emptyState.classList.add('show');
                 }
