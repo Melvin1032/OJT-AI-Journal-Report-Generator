@@ -110,7 +110,7 @@ function initializeDatabase($pdo) {
     // Create indexes
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_date ON ojt_entries(entry_date)");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_images_entry_id ON entry_images(entry_id)");
-    
+
     // Keep old table for backward compatibility (optional)
     $pdo->exec("CREATE TABLE IF NOT EXISTS journal_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +118,26 @@ function initializeDatabase($pdo) {
         ai_description TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )");
+
+    // Create student info table for OJT report
+    $sql = "CREATE TABLE IF NOT EXISTS student_info (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_name TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        company_address TEXT,
+        student_role TEXT,
+        introduction TEXT,
+        purpose_role TEXT,
+        conclusion TEXT,
+        recommendations TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )";
+
+    $pdo->exec($sql);
+
+    // Insert default row if not exists
+    $pdo->exec("INSERT OR IGNORE INTO student_info (id, student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations) 
+                VALUES (1, '', '', '', '', '', '', '', '')");
 }
 
 /**

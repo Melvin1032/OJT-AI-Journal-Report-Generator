@@ -119,7 +119,7 @@ async function handleGenerateDownloadReport() {
  * Display Download Report (non-AI, just entries following ISPSC format)
  */
 function displayDownloadReport(report) {
-    const { entries, start_date, end_date, total_days, student_name } = report;
+    const { entries, start_date, end_date, total_days, student_name, company_name, student_role, introduction, purpose_role, conclusion, recommendations } = report;
 
     downloadReportContent.innerHTML = `
         <div class="download-report">
@@ -130,7 +130,7 @@ function displayDownloadReport(report) {
                     <h2 class="report-cover-campus">Candon Campus</h2>
                     <div class="report-cover-spacer-large"></div>
                     <h1 class="report-cover-title">OJT REPORT</h1>
-                    <p class="report-cover-company">(Name of Company/office assigned)</p>
+                    <p class="report-cover-company">${company_name || '(Name of Company/Office Assigned)'}</p>
                     <div class="report-cover-spacer-large"></div>
                     <p class="report-cover-name">${student_name}</p>
                     <p class="report-cover-program">Bachelor of Science in Information Technology</p>
@@ -156,7 +156,7 @@ function displayDownloadReport(report) {
                         <h3>Chapter I Company Profile</h3>
                         <ul>
                             <li>Introduction ............................................................................................ 1</li>
-                            <li>Duration and Time ................................................................................... 2</li>
+                            <li>Duration .................................................................................................... 2</li>
                             <li>Purpose/Role to the Company .................................................................. 3</li>
                         </ul>
                     </div>
@@ -205,22 +205,22 @@ function displayDownloadReport(report) {
                 </div>
                 <div class="report-chapter">
                     <h2 class="report-chapter-title">CHAPTER I: COMPANY PROFILE</h2>
-                    
+
                     <h3 class="report-section-title">Introduction</h3>
                     <div class="report-placeholder">
-                        <p><em>[Write the introduction of the company here. Include company name, location, nature of business, and background.]</em></p>
+                        ${introduction ? `<p>${introduction}</p>` : `<p><em>[Write the introduction of the company here. Include company name, location, nature of business, and background.]</em></p>`}
                     </div>
 
-                    <h3 class="report-section-title">Duration and Time</h3>
+                    <h3 class="report-section-title">Duration</h3>
                     <div class="report-placeholder">
-                        <p><em>Start Date: ${start_date}</em></p>
-                        <p><em>End Date: ${end_date}</em></p>
-                        <p><em>Daily Hours: [Specify your daily OJT hours, e.g., 8:00 AM - 5:00 PM]</em></p>
+                        <p><strong>Start Date:</strong> ${start_date}</p>
+                        <p><strong>End Date:</strong> ${end_date}</p>
+                        <p><strong>Total Days:</strong> ${total_days} days</p>
                     </div>
 
                     <h3 class="report-section-title">Purpose/Role to the Company</h3>
                     <div class="report-placeholder">
-                        <p><em>[Describe your specific role and what you aimed to achieve during the OJT]</em></p>
+                        ${purposeRole ? `<p>${purposeRole}</p>` : `<p><em>[Describe your specific role and what you aimed to achieve during the OJT]</em></p>`}
                     </div>
                 </div>
                 <div class="report-footer">

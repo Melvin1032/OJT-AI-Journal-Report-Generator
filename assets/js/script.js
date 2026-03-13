@@ -25,10 +25,28 @@ const narrativeContent = document.getElementById('narrativeContent');
 const closeNarrativeBtn = document.getElementById('closeNarrativeBtn');
 const themeToggle = document.getElementById('themeToggle');
 
+// Student Info Form Elements
+const studentInfoForm = document.getElementById('studentInfoForm');
+const studentName = document.getElementById('studentName');
+const studentRole = document.getElementById('studentRole');
+const companyName = document.getElementById('companyName');
+const companyAddress = document.getElementById('companyAddress');
+const introduction = document.getElementById('introduction');
+const purposeRole = document.getElementById('purposeRole');
+const conclusion = document.getElementById('conclusion');
+const recommendations = document.getElementById('recommendations');
+const saveStudentInfoBtn = document.getElementById('saveStudentInfoBtn');
+const generateIntroAiBtn = document.getElementById('generateIntroAiBtn');
+const generatePurposeAiBtn = document.getElementById('generatePurposeAiBtn');
+const generateConclusionAiBtn = document.getElementById('generateConclusionAiBtn');
+const generateRecsAiBtn = document.getElementById('generateRecsAiBtn');
+const studentInfoMessage = document.getElementById('studentInfoMessage');
+
 // State
 let selectedFiles = [];
 let narrativeCache = null;
 let deleteCallback = null; // Store delete callback function
+let studentInfoCache = null;
 
 // Set default date to today
 entryDate.valueAsDate = new Date();
@@ -53,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
     loadWeeklyReport();
     initializeDownloadReport(); // Initialize download report functions
+    loadStudentInfo(); // Load student information
 });
 
 /**
@@ -99,6 +118,25 @@ function initializeEventListeners() {
 
     // Confirmation modal buttons
     initializeConfirmationModal();
+
+    // Student Info Form submission
+    if (studentInfoForm) {
+        studentInfoForm.addEventListener('submit', handleStudentInfoSubmit);
+    }
+
+    // Individual AI generate buttons
+    if (generateIntroAiBtn) {
+        generateIntroAiBtn.addEventListener('click', () => generateSectionAI('introduction'));
+    }
+    if (generatePurposeAiBtn) {
+        generatePurposeAiBtn.addEventListener('click', () => generateSectionAI('purpose'));
+    }
+    if (generateConclusionAiBtn) {
+        generateConclusionAiBtn.addEventListener('click', () => generateSectionAI('conclusion'));
+    }
+    if (generateRecsAiBtn) {
+        generateRecsAiBtn.addEventListener('click', () => generateSectionAI('recommendations'));
+    }
 }
 
 /**
@@ -1409,4 +1447,216 @@ function handleDownloadPdf() {
 
     // Trigger print and user can select "Save as PDF"
     handlePrintDownloadReport();
+}
+
+/**
+ * Load student information from database
+ */
+async function loadStudentInfo() {
+    try {
+        const response = await fetch('process.php?action=getStudentInfo');
+        const data = await response.json();
+
+        if (data.success && data.info) {
+            studentInfoCache = data.info;
+            
+            // Populate form fields
+            if (studentName) studentName.value = data.info.student_name || '';
+            if (studentRole) studentRole.value = data.info.student_role || '';
+            if (companyName) companyName.value = data.info.company_name || '';
+            if (companyAddress) companyAddress.value = data.info.company_address || '';
+            if (introduction) introduction.value = data.info.introduction || '';
+            if (purposeRole) purposeRole.value = data.info.purpose_role || '';
+            if (conclusion) conclusion.value = data.info.conclusion || '';
+            if (recommendations) recommendations.value = data.info.recommendations || '';
+        }
+    } catch (error) {
+        console.error('Failed to load student info:', error);
+    }
+}
+
+/**
+ * Handle student info form submission
+ */
+async function handleStudentInfoSubmit(e) {
+    e.preventDefault();
+
+    const sName = studentName?.value.trim();
+    const cName = companyName?.value.trim();
+
+    if (!sName || !cName) {
+        showStudentInfoStatus('Student name and company name are required', 'error');
+        return;
+    }
+
+    setLoading(saveStudentInfoBtn, true);
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        
+        const response = await fetch('process.php?action=saveStudentInfo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({
+                student_name: sName,
+                student_role: studentRole?.value.trim() || '',
+                company_name: cName,
+                company_address: companyAddress?.value.trim() || '',
+                introduction: introduction?.value.trim() || '',
+                purpose_role: purposeRole?.value.trim() || '',
+                conclusion: conclusion?.value.trim() || '',
+                recommendations: recommendations?.value.trim() || ''
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            studentInfoCache = {
+                student_name: sName,
+                student_role: studentRole?.value.trim() || '',
+                company_name: cName,
+                company_address: companyAddress?.value.trim() || '',
+                introduction: introduction?.value.trim() || '',
+                purpose_role: purposeRole?.value.trim() || '',
+                conclusion: conclusion?.value.trim() || '',
+                recommendations: recommendations?.value.trim() || ''
+            };
+            showStudentInfoStatus('Information saved successfully!', 'success');
+        } else {
+            showStudentInfoStatus(data.error || 'Failed to save information', 'error');
+        }
+    } catch (error) {
+        console.error('Save student info error:', error);
+        showStudentInfoStatus('An error occurred while saving', 'error');
+    } finally {
+        setLoading(saveStudentInfoBtn, false);
+    }
+}
+
+/**
+ * Generate AI content for a specific section
+ */
+async function generateSectionAI(section) {
+    const sName = studentName?.value.trim();
+    const cName = companyName?.value.trim();
+    const cAddress = companyAddress?.value.trim();
+    const sRole = studentRole?.value.trim();
+    const introText = introduction?.value.trim();
+    const purposeText = purposeRole?.value.trim();
+
+    if (!sName || !cName) {
+        showStudentInfoStatus('Please enter student name and company name first', 'error');
+        return;
+    }
+
+    let targetField, chapterType, context;
+
+    switch(section) {
+        case 'introduction':
+            targetField = introduction;
+            chapterType = 'chapter1_intro';
+            context = {
+                student_name: sName,
+                company_name: cName,
+                company_address: cAddress,
+                student_role: sRole,
+                brief_description: introText
+            };
+            break;
+        case 'purpose':
+            targetField = purposeRole;
+            chapterType = 'chapter2_purpose';
+            context = {
+                student_name: sName,
+                company_name: cName,
+                student_role: sRole,
+                brief_description: purposeText
+            };
+            break;
+        case 'conclusion':
+            targetField = conclusion;
+            chapterType = 'chapter3_conclusion';
+            context = {};
+            break;
+        case 'recommendations':
+            targetField = recommendations;
+            chapterType = 'chapter3_recommendations';
+            context = {};
+            break;
+        default:
+            return;
+    }
+
+    // Disable button during generation
+    const btnMap = {
+        'introduction': generateIntroAiBtn,
+        'purpose': generatePurposeAiBtn,
+        'conclusion': generateConclusionAiBtn,
+        'recommendations': generateRecsAiBtn
+    };
+    const btn = btnMap[section];
+    
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<div class="btn-loader" style="width:14px;height:14px;border-width:2px;margin-right:0.5rem;"></div> Generating...';
+    }
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        
+        const response = await fetch('process.php?action=generateChapterAI', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify({ chapter: chapterType, context })
+        });
+        const data = await response.json();
+        
+        if (data.success && targetField) {
+            targetField.value = data.content;
+            showStudentInfoStatus(`${section.charAt(0).toUpperCase() + section.slice(1)} generated successfully!`, 'success');
+        } else if (data.error) {
+            showStudentInfoStatus(data.error, 'error');
+        }
+    } catch (error) {
+        console.error('AI generation error:', error);
+        showStudentInfoStatus('Failed to generate content. Please try again.', 'error');
+    } finally {
+        // Restore button
+        const btnLabels = {
+            'introduction': 'Generate with AI',
+            'purpose': 'Generate with AI',
+            'conclusion': 'Generate with AI',
+            'recommendations': 'Generate with AI'
+        };
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; margin-right: 0.25rem;">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+            </svg>
+            ${btnLabels[section]}`;
+        }
+    }
+}
+
+/**
+ * Show status message for student info form
+ */
+function showStudentInfoStatus(message, type) {
+    if (!studentInfoMessage) return;
+    
+    studentInfoMessage.textContent = message;
+    studentInfoMessage.className = `status-message show ${type}`;
+    
+    setTimeout(() => {
+        studentInfoMessage.classList.remove('show');
+    }, 5000);
 }

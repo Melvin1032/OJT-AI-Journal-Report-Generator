@@ -44,6 +44,130 @@ $csrfToken = generateCSRFToken();
             </div>
         </header>
 
+        <!-- Student & Company Info Section -->
+        <section class="student-info-section">
+            <div class="entry-card">
+                <h2>👤 Student & Company Information</h2>
+
+                <form id="studentInfoForm" class="ojt-form" novalidate>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="studentName">Student Name *</label>
+                            <input type="text" id="studentName" name="student_name"
+                                   placeholder="e.g., Juan Dela Cruz"
+                                   required
+                                   aria-required="true"
+                                   autocomplete="name">
+                        </div>
+                        <div class="form-group">
+                            <label for="studentRole">Role/Position *</label>
+                            <input type="text" id="studentRole" name="student_role"
+                                   placeholder="e.g., IT Intern, Web Development Intern"
+                                   required
+                                   aria-required="true">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="companyName">Company/Office Name *</label>
+                            <input type="text" id="companyName" name="company_name"
+                                   placeholder="e.g., ABC Corporation"
+                                   required
+                                   aria-required="true">
+                        </div>
+                        <div class="form-group">
+                            <label for="companyAddress">Company Address</label>
+                            <input type="text" id="companyAddress" name="company_address"
+                                   placeholder="e.g., Candon City, Ilocos Sur">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="introduction">Introduction</label>
+                        <textarea id="introduction" name="introduction" rows="3"
+                                  placeholder="Brief introduction about the company and your OJT program..."
+                                  aria-describedby="intro-hint"></textarea>
+                        <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
+                            <button type="button" class="btn btn-primary" id="generateIntroAiBtn" style="padding: 0.4rem 0.875rem; font-size: 0.85rem;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; margin-right: 0.25rem;">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                                Generate with AI
+                            </button>
+                        </div>
+                        <span id="intro-hint" class="form-hint">AI will generate based on your company info</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purposeRole">Purpose/Role to the Company</label>
+                        <textarea id="purposeRole" name="purpose_role" rows="3"
+                                  placeholder="Describe your responsibilities and contributions..."
+                                  aria-describedby="purpose-hint"></textarea>
+                        <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
+                            <button type="button" class="btn btn-primary" id="generatePurposeAiBtn" style="padding: 0.4rem 0.875rem; font-size: 0.85rem;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; margin-right: 0.25rem;">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                                Generate with AI
+                            </button>
+                        </div>
+                        <span id="purpose-hint" class="form-hint">AI will generate based on your role and activities</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="conclusion">Conclusion</label>
+                        <textarea id="conclusion" name="conclusion" rows="3"
+                                  placeholder="Summarize your learnings and growth..."
+                                  aria-describedby="conclusion-hint"></textarea>
+                        <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
+                            <button type="button" class="btn btn-primary" id="generateConclusionAiBtn" style="padding: 0.4rem 0.875rem; font-size: 0.85rem;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; margin-right: 0.25rem;">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                                Generate with AI
+                            </button>
+                        </div>
+                        <span id="conclusion-hint" class="form-hint">AI will generate based on your OJT entries</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="recommendations">Recommendations</label>
+                        <textarea id="recommendations" name="recommendations" rows="3"
+                                  placeholder="Suggestions for future OJT students, company, and school..."
+                                  aria-describedby="recs-hint"></textarea>
+                        <div style="display: flex; justify-content: flex-start; margin-top: 0.5rem;">
+                            <button type="button" class="btn btn-primary" id="generateRecsAiBtn" style="padding: 0.4rem 0.875rem; font-size: 0.85rem;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; margin-right: 0.25rem;">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                                    <path d="M2 17l10 5 10-5"/>
+                                    <path d="M2 12l10 5 10-5"/>
+                                </svg>
+                                Generate with AI
+                            </button>
+                        </div>
+                        <span id="recs-hint" class="form-hint">AI will generate based on your OJT entries</span>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="saveStudentInfoBtn"
+                                aria-busy="false">
+                            <span class="btn-text">Save Information</span>
+                            <span class="btn-loader hidden" aria-hidden="true"></span>
+                        </button>
+                    </div>
+
+                    <div class="status-message" id="studentInfoMessage" role="alert" aria-live="polite"></div>
+                </form>
+            </div>
+        </section>
+
         <!-- OJT Entry Form -->
         <section class="entry-section">
             <div class="entry-card">
@@ -289,6 +413,26 @@ $csrfToken = generateCSRFToken();
             </div>
         </section>
     </div>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.9rem; border-top: 1px solid var(--border-color); margin-top: 2rem;">
+        <p style="margin-bottom: 0.5rem;">
+            <strong>✨ AI-Powered OJT Journal Report Generator</strong>
+        </p>
+        <p style="margin: 0;">
+            Developed by 
+            <a href="https://github.com/Melvin1032" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                John Melvin R. Macabeo
+            </a>
+            <span style="margin: 0 0.5rem;">|</span>
+            <a href="https://github.com/Melvin1032/OJT-AI-Journal-Report-Generator" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 0.25rem;">
+                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                </svg>
+                View on GitHub
+            </a>
+        </p>
+    </footer>
 
     <!-- Print Area for Download Report -->
     <div id="printReportArea" class="print-report-area">
