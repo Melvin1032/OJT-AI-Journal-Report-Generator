@@ -46,10 +46,30 @@ define('AI_MAX_RETRIES', (int)(getenv('AI_MAX_RETRIES') ?: $_ENV['AI_MAX_RETRIES
 define('AI_TIMEOUT', (int)(getenv('AI_TIMEOUT') ?: $_ENV['AI_TIMEOUT'] ?? 30));
 
 // Database Configuration
-define('DB_PATH', getenv('DB_PATH') ?: $_ENV['DB_PATH'] ?? __DIR__ . '/../storage/db/journal.db');
+$dbPath = getenv('DB_PATH') ?: $_ENV['DB_PATH'] ?? null;
+if ($dbPath) {
+    // Convert relative path to absolute based on project root
+    if (!str_starts_with($dbPath, ':') && !str_starts_with($dbPath, '/')) {
+        $dbPath = dirname(__DIR__) . '/' . str_replace('\\', '/', $dbPath);
+    }
+    define('DB_PATH', $dbPath);
+} else {
+    // Use absolute path based on project root
+    define('DB_PATH', dirname(__DIR__) . '/storage/db/journal.db');
+}
 
 // Upload Configuration
-define('UPLOAD_DIR', getenv('UPLOAD_DIR') ?: $_ENV['UPLOAD_DIR'] ?? __DIR__ . '/../storage/uploads/');
+$uploadDir = getenv('UPLOAD_DIR') ?: $_ENV['UPLOAD_DIR'] ?? null;
+if ($uploadDir) {
+    // Convert relative path to absolute based on project root
+    if (!str_starts_with($uploadDir, ':') && !str_starts_with($uploadDir, '/')) {
+        $uploadDir = dirname(__DIR__) . '/' . str_replace('\\', '/', $uploadDir);
+    }
+    define('UPLOAD_DIR', $uploadDir);
+} else {
+    // Use absolute path based on project root
+    define('UPLOAD_DIR', dirname(__DIR__) . '/storage/uploads/');
+}
 define('MAX_FILE_SIZE', (int)(getenv('MAX_FILE_SIZE') ?: $_ENV['MAX_FILE_SIZE'] ?? 5 * 1024 * 1024)); // 5MB max
 define('ALLOWED_TYPES', explode(',', getenv('ALLOWED_TYPES') ?: $_ENV['ALLOWED_TYPES'] ?? 'image/jpeg,image/png,image/gif,image/webp'));
 

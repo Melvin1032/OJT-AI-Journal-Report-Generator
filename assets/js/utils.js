@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OJT Journal - Enhanced Utilities
  * Toast notifications, image compression, lazy loading, and accessibility features
  */
@@ -475,7 +475,7 @@ class CSRFManager {
         
         // Fetch from server
         try {
-            const response = await fetch('process.php?action=getCSRFToken');
+            const response = await fetch('src/process.php?action=getCSRFToken');
             const data = await response.json();
             this.token = data.csrf_token;
             this.lastRefresh = Date.now();

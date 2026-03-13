@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Print Report Functions for OJT Journal Report Generator
  * Handles Download Report modal, Word/PDF download, and printing
  */
@@ -45,7 +45,7 @@ async function handleGenerateDownloadReport() {
     `;
 
     try {
-        const response = await fetch('process.php?action=generateDownloadReport');
+        const response = await fetch('src/process.php?action=generateDownloadReport');
         const result = await response.json();
 
         if (result.success) {
@@ -161,7 +161,7 @@ function displayDownloadReport(report) {
 
                     <h3 class="report-section-title">Introduction</h3>
                     <div class="report-placeholder">
-                        ${introduction ? `<p>${introduction}</p>` : `<p><em>[Write the introduction of the company here. Include company name, location, nature of business, and background.]</em></p>`}
+                        ${introduction ? `<p>${escapeHtml(introduction)}</p>` : `<p><em>[Write the introduction of the company here. Include company name, location, nature of business, and background.]</em></p>`}
                     </div>
 
                     <h3 class="report-section-title">Duration</h3>
@@ -173,7 +173,7 @@ function displayDownloadReport(report) {
 
                     <h3 class="report-section-title">Purpose/Role to the Company</h3>
                     <div class="report-placeholder">
-                        ${purposeRole ? `<p>${purposeRole}</p>` : `<p><em>[Describe your specific role and what you aimed to achieve during the OJT]</em></p>`}
+                        ${purpose_role ? `<p>${escapeHtml(purpose_role)}</p>` : `<p><em>[Describe your specific role and what you aimed to achieve during the OJT]</em></p>`}
                     </div>
                 </div>
                 <div class="report-footer">
@@ -246,15 +246,15 @@ function displayDownloadReport(report) {
                 </div>
                 <div class="report-chapter">
                     <h2 class="report-chapter-title">CHAPTER III: CONCLUSION AND RECOMMENDATION</h2>
-                    
+
                     <h3 class="report-section-title">Conclusion</h3>
                     <div class="report-placeholder">
-                        <p><em>[Summarize your overall experience and learnings]</em></p>
+                        ${conclusion ? `<p>${escapeHtml(conclusion)}</p>` : `<p><em>[Summarize your overall experience and learnings]</em></p>`}
                     </div>
 
                     <h3 class="report-section-title">Recommendation</h3>
                     <div class="report-placeholder">
-                        <p><em>[Provide suggestions for future OJT students, the company, or the school]</em></p>
+                        ${recommendations ? `<p>${escapeHtml(recommendations)}</p>` : `<p><em>[Provide suggestions for future OJT students, the company, or the school]</em></p>`}
                     </div>
                 </div>
                 <div class="report-footer">
@@ -346,7 +346,7 @@ function handlePrintDownloadReport() {
         return;
     }
 
-    const { entries, start_date, end_date, student_name } = downloadReportCache;
+    const { entries, start_date, end_date, student_name, company_name, introduction, purpose_role, conclusion, recommendations } = downloadReportCache;
 
     printContent.innerHTML = `
         <!-- Cover Page -->
@@ -356,7 +356,7 @@ function handlePrintDownloadReport() {
                 <h2 class="print-cover-campus">Candon Campus</h2>
                 <div class="print-cover-spacer-large"></div>
                 <h1 class="print-cover-title">OJT REPORT</h1>
-                <p class="print-cover-company">(Name of Company/office assigned)</p>
+                <p class="print-cover-company">${company_name || '(Name of Company/Office Assigned)'}</p>
                 <div class="print-cover-spacer-large"></div>
                 <p class="print-cover-name">${student_name}</p>
                 <p class="print-cover-program">Bachelor of Science in Information Technology</p>
@@ -430,10 +430,10 @@ function handlePrintDownloadReport() {
                 </div>
             </div>
             <h2 class="print-chapter-title">CHAPTER I: COMPANY PROFILE</h2>
-            
+
             <h3 class="print-section-title">Introduction</h3>
             <div class="print-placeholder">
-                <p><em>[Write the introduction of the company here]</em></p>
+                ${introduction ? `<p>${escapeHtml(introduction)}</p>` : `<p><em>[Write the introduction of the company here]</em></p>`}
             </div>
 
             <h3 class="print-section-title">Duration and Time</h3>
@@ -445,7 +445,7 @@ function handlePrintDownloadReport() {
 
             <h3 class="print-section-title">Purpose/Role to the Company</h3>
             <div class="print-placeholder">
-                <p><em>[Describe your specific role and objectives]</em></p>
+                ${purpose_role ? `<p>${escapeHtml(purpose_role)}</p>` : `<p><em>[Describe your specific role and objectives]</em></p>`}
             </div>
         </div>
         <div class="print-footer">
@@ -518,12 +518,12 @@ function handlePrintDownloadReport() {
 
             <h3 class="print-section-title">Conclusion</h3>
             <div class="print-placeholder">
-                <p><em>[Summarize your overall experience and learnings]</em></p>
+                ${conclusion ? `<p>${escapeHtml(conclusion)}</p>` : `<p><em>[Summarize your overall experience and learnings]</em></p>`}
             </div>
 
             <h3 class="print-section-title">Recommendation</h3>
             <div class="print-placeholder">
-                <p><em>[Provide suggestions for future OJT students, company, school]</em></p>
+                ${recommendations ? `<p>${escapeHtml(recommendations)}</p>` : `<p><em>[Provide suggestions for future OJT students, company, school]</em></p>`}
             </div>
         </div>
         <div class="print-footer">
@@ -615,7 +615,7 @@ async function handleDownloadWord() {
         return;
     }
 
-    const { entries, start_date, end_date, student_name } = downloadReportCache;
+    const { entries, start_date, end_date, student_name, company_name, introduction, purpose_role, conclusion, recommendations } = downloadReportCache;
 
     // Convert images to base64
     const imageCache = {};
@@ -684,7 +684,7 @@ async function handleDownloadWord() {
                 <h2 class="cover-campus">Candon Campus</h2>
                 <div style="height: 50px;"></div>
                 <h1 class="cover-title">OJT REPORT</h1>
-                <p>(Name of Company/office assigned)</p>
+                <p>${company_name || '(Name of Company/Office Assigned)'}</p>
                 <div style="height: 50px;"></div>
                 <p class="cover-name">${student_name}</p>
                 <p>Bachelor of Science in Information Technology</p>
@@ -693,13 +693,13 @@ async function handleDownloadWord() {
 
             <h2>Chapter I: Company Profile</h2>
             <h3>Introduction</h3>
-            <p><em>[Write the introduction of the company here]</em></p>
+            ${introduction ? `<p>${escapeHtml(introduction)}</p>` : `<p><em>[Write the introduction of the company here]</em></p>`}
             <h3>Duration and Time</h3>
             <p>Start Date: ${start_date}</p>
             <p>End Date: ${end_date}</p>
-            <p><em>Daily Hours: [Specify your daily OJT hours]</em></p>
+            <p><strong>Total Days:</strong> ${entries.length} days</p>
             <h3>Purpose/Role to the Company</h3>
-            <p><em>[Describe your specific role and objectives]</em></p>
+            ${purpose_role ? `<p>${escapeHtml(purpose_role)}</p>` : `<p><em>[Describe your specific role and objectives]</em></p>`}
 
             <h2>Chapter II: Immersion Documentation</h2>
             <h3>Background of the Action Plan</h3>
@@ -724,9 +724,9 @@ async function handleDownloadWord() {
 
             <h2>Chapter III: Conclusion and Recommendation</h2>
             <h3>Conclusion</h3>
-            <p><em>[Summarize your overall experience and learnings]</em></p>
+            ${conclusion ? `<p>${escapeHtml(conclusion)}</p>` : `<p><em>[Summarize your overall experience and learnings]</em></p>`}
             <h3>Recommendation</h3>
-            <p><em>[Provide suggestions for future OJT students, company, school]</em></p>
+            ${recommendations ? `<p>${escapeHtml(recommendations)}</p>` : `<p><em>[Provide suggestions for future OJT students, company, school]</em></p>`}
 
             <h2>Appendix: Photo Documentation</h2>
             <div class="photo-grid">
@@ -804,7 +804,7 @@ async function handleGenerateAIReport() {
     `;
 
     try {
-        const response = await fetch('process.php?action=generateISPSCReport');
+        const response = await fetch('src/process.php?action=generateISPSCReport');
         const result = await response.json();
 
         if (result.success) {

@@ -6,7 +6,7 @@
  * - OJT entry creation with title, description, and multiple images
  * - Qwen API integration for image analysis and description enhancement
  * - Database operations for OJT journal entries
- * 
+ *
  * Security Features:
  * - CSRF protection
  * - Input validation and sanitization
@@ -31,7 +31,7 @@ register_shutdown_function(function() {
     }
 });
 
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/../config/config.php';
 
 // Log request start
 $requestStart = microtime(true);
@@ -45,11 +45,11 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         requireCSRFValidation();
     }
-    
+
     $action = $_GET['action'] ?? '';
-    
+
     // Rate limiting for write operations
-    $writeActions = ['createEntry', 'delete', 'updateDescription', 'generateISPSCReport', 'generateNarrative'];
+    $writeActions = ['createEntry', 'delete', 'updateDescription', 'generateISPSCReport', 'generateNarrative', 'saveStudentInfo', 'getStudentInfo', 'generateChapterAI'];
     if (in_array($action, $writeActions)) {
         if (!checkRateLimit($action, 10, 60)) { // 10 requests per minute
             $limitInfo = getRateLimitInfo($action);
@@ -59,7 +59,7 @@ try {
             ], 429);
         }
     }
-    
+
     Logger::info('Request received', ['action' => $action, 'method' => $_SERVER['REQUEST_METHOD']]);
 
     switch ($action) {
@@ -91,6 +91,15 @@ try {
         case 'bulkDelete':
             bulkDelete();
             break;
+        case 'saveStudentInfo':
+            saveStudentInfo();
+            break;
+        case 'getStudentInfo':
+            getStudentInfo();
+            break;
+        case 'generateChapterAI':
+            generateChapterAI();
+            break;
         default:
             if (empty($action)) {
                 jsonResponse(['error' => 'No action specified', 'hint' => 'Use ?action=createEntry, ?action=getWeekly, etc.'], 400);
@@ -103,7 +112,7 @@ try {
         'message' => $e->getMessage(),
         'code' => $e->getCode()
     ]);
-    
+
     $statusCode = $e->getCode() !== 0 ? $e->getCode() : 500;
     jsonResponse(['error' => $e->getMessage()], $statusCode);
 } catch (Throwable $e) {
@@ -113,7 +122,7 @@ try {
         'file' => $e->getFile(),
         'line' => $e->getLine()
     ]);
-    
+
     jsonResponse(['error' => 'Server error occurred'], 500);
 } finally {
     // Log request completion
@@ -126,7 +135,7 @@ try {
  */
 function createOJTEntry() {
     $requestStart = microtime(true);
-    
+
     if (!isApiKeyConfigured()) {
         Logger::error('API key not configured');
         jsonResponse(['error' => 'API key not configured'], 500);
@@ -136,13 +145,13 @@ function createOJTEntry() {
     $title = sanitizeInput($_POST['title'] ?? '', 'text', 200);
     $userDescription = sanitizeInput($_POST['description'] ?? '', 'text', 2000);
     $entryDate = sanitizeInput($_POST['entry_date'] ?? '', 'date');
-    
+
     // Validate required fields
     if (empty($title)) {
         Logger::warning('Create entry failed - missing title', ['post' => $_POST]);
         jsonResponse(['error' => 'Title is required'], 400);
     }
-    
+
     if (strlen($title) < 3) {
         jsonResponse(['error' => 'Title must be at least 3 characters'], 400);
     }
@@ -150,7 +159,7 @@ function createOJTEntry() {
     if (!$entryDate) {
         jsonResponse(['error' => 'Invalid date format. Use YYYY-MM-DD'], 400);
     }
-    
+
     // Validate date is not in the future
     if (strtotime($entryDate) > strtotime('tomorrow')) {
         jsonResponse(['error' => 'Date cannot be in the future'], 400);
@@ -160,7 +169,7 @@ function createOJTEntry() {
     if (empty($_FILES['images']) || empty($_FILES['images']['name'][0])) {
         jsonResponse(['error' => 'At least one image is required'], 400);
     }
-    
+
     // Validate number of images
     $uploadCount = count($_FILES['images']['name']);
     if ($uploadCount > 10) {
@@ -193,7 +202,7 @@ function createOJTEntry() {
         // Process images with validation
         $imageResults = [];
         $validImageCount = 0;
-        
+
         for ($i = 0; $i < $uploadCount; $i++) {
             $file = [
                 'name' => $_FILES['images']['name'][$i],
@@ -205,7 +214,7 @@ function createOJTEntry() {
 
             // Validate image using security helper
             $validation = validateImageUpload($file);
-            
+
             if (!$validation['valid']) {
                 Logger::warning('Image validation failed', [
                     'file' => $file['name'],
@@ -214,22 +223,22 @@ function createOJTEntry() {
                 $imageResults[] = ['error' => $validation['error'], 'file' => $file['name']];
                 continue;
             }
-            
+
             // Move file securely
             $moveResult = moveUploadedFileSecurely($file, UPLOAD_DIR, $validation['secure_name']);
-            
+
             if (!$moveResult['success']) {
                 Logger::error('Failed to move uploaded file', ['file' => $file['name']]);
                 $imageResults[] = ['error' => $moveResult['error'], 'file' => $file['name']];
                 continue;
             }
-            
+
             $validImageCount++;
             $imagePath = $moveResult['url'];
 
             // Analyze image with AI
             $aiDescription = analyzeImageWithQwen($imagePath);
-            
+
             if (is_array($aiDescription) && isset($aiDescription['error'])) {
                 Logger::warning('AI analysis failed', ['image' => $imagePath]);
                 $aiDescription = 'Image uploaded but analysis unavailable';
@@ -240,7 +249,7 @@ function createOJTEntry() {
                 INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
                 VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
             ");
-            
+
             $stmt->execute([
                 ':entry_id' => $entryId,
                 ':image_path' => $imagePath,
@@ -255,7 +264,7 @@ function createOJTEntry() {
                 'ai_description' => is_string($aiDescription) ? $aiDescription : null
             ];
         }
-        
+
         if ($validImageCount === 0) {
             // Delete entry if no valid images
             $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id");
@@ -280,7 +289,7 @@ function createOJTEntry() {
             ':ai_desc' => $enhancedDescription,
             ':id' => $entryId
         ]);
-        
+
         $duration = round((microtime(true) - $requestStart) * 1000, 2);
         Logger::info('Entry creation completed', [
             'entry_id' => $entryId,
@@ -294,7 +303,7 @@ function createOJTEntry() {
             'images_processed' => $validImageCount,
             'images' => $imageResults
         ]);
-        
+
     } catch (PDOException $e) {
         Logger::error('Database error in createOJTEntry', ['error' => $e->getMessage()]);
         jsonResponse(['error' => 'Database error occurred'], 500);
@@ -369,8 +378,8 @@ function analyzeImageWithQwen($imagePath) {
     $mimeType = mime_content_type($imagePath);
     $base64Image = 'data:' . $mimeType . ';base64,' . $imageData;
 
-    // Optimized prompt: concise, direct, token-efficient
-    $prompt = "Analyze this image for an OJT journal. Write 1-2 sentences describing: (1) what's shown, (2) the learning purpose. Professional tone, no labels.";
+    // Optimized prompt: concise, direct, token-efficient, narrative best practices
+    $prompt = "Analyze this image for an OJT journal. Write 1-2 sentences in PAST TENSE describing: (1) what was shown in the image, (2) the learning purpose or skill demonstrated. Professional tone, no labels. Do NOT start with 'Today', 'This', 'Here', or 'In this'.";
 
     $requestData = [
         'messages' => [
@@ -394,14 +403,14 @@ function analyzeImageWithQwen($imagePath) {
 
     // Use fallback mechanism
     $result = callAIWithFallback($requestData, QWEN_VISION_MODEL, FALLBACK_VISION_MODEL, AI_TIMEOUT);
-    
+
     if ($result['success']) {
         if ($result['used_fallback']) {
             error_log("Image analysis used fallback model: " . $result['model']);
         }
         return $result['content'];
     }
-    
+
     return ['error' => $result['error']];
 }
 
@@ -412,27 +421,31 @@ function analyzeImageWithQwen($imagePath) {
 function cleanDescription($text) {
     // Remove "Title:" prefix and anything before first newline
     $text = preg_replace('/^Title:\s*[^\n]+\n/i', '', $text);
-    
+
     // Remove bullet point patterns at the start
     $text = preg_replace('/^[\-\*•]\s*/m', '', $text);
-    
+
     // Remove numbered list patterns at the start
     $text = preg_replace('/^\d+\.\s*/m', '', $text);
-    
+
     // Remove common unwanted phrases at the beginning
     $unwantedPatterns = [
         '/^Here\'s? a\s+/i',
         '/^Here\'s? my\s+/i',
+        '/^Here\'s?\s+/i',
         '/^In this\s+/i',
         '/^During this\s+/i',
         '/^This (entry|journal|post|report) (covers|describes|shows|discusses)/i',
         '/^This (session|meeting|day|week) (covers|describes|shows|discusses)/i',
+        '/^Today,?\s+/i',
+        '/^This week,?\s+/i',
+        '/^On this day,?\s+/i',
     ];
-    
+
     foreach ($unwantedPatterns as $pattern) {
         $text = preg_replace($pattern, '', $text);
     }
-    
+
     // Remove lines that are just labels or headers
     $lines = explode("\n", $text);
     $filteredLines = array_filter($lines, function($line) {
@@ -442,12 +455,12 @@ function cleanDescription($text) {
         if (preg_match('/^[\-\*•]$/', $trimmed)) return false;
         return true;
     });
-    
+
     $text = implode("\n", $filteredLines);
-    
+
     // Clean up multiple newlines
     $text = preg_replace('/\n{3,}/', "\n\n", $text);
-    
+
     return trim($text);
 }
 
@@ -472,7 +485,7 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
     // Combine user description with AI image analysis
     $imageContext = implode('. ', $aiDescriptions);
     $enhancedDescription = enhanceUserDescriptionWithAI($userDescription, $title, $imageContext);
-    
+
     return $enhancedDescription;
 }
 
@@ -480,15 +493,21 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
  * Enhance user description using AI
  */
 function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = '') {
-    // Optimized prompt: direct, token-efficient
-    $prompt = "Enhance this OJT journal entry for a weekly report. Make it professional and detailed.\n\n";
-    $prompt .= "Entry: {$userDescription}\n";
-    
+    // Optimized prompt: direct, token-efficient, narrative best practices
+    $prompt = "Write a professional OJT journal entry in narrative form. Use past tense.\n\n";
+    $prompt .= "Entry Title: {$userDescription}\n";
+
     if (!empty($imageContext)) {
-        $prompt .= "Image context: {$imageContext}\n";
+        $prompt .= "Image Context: {$imageContext}\n";
     }
-    
-    $prompt .= "\nWrite 2 paragraphs: (1) what was done, (2) skills learned. Professional tone. No titles, bullets, or 'Here's/In this'.";
+
+    $prompt .= "\nGuidelines:\n";
+    $prompt .= "- Write in 2 paragraphs: (1) tasks accomplished and activities, (2) skills learned and insights\n";
+    $prompt .= "- Use THIRD PERSON or FIRST PERSON past tense (e.g., 'The intern developed...' or 'I developed...')\n";
+    $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this'\n";
+    $prompt .= "- Begin directly with the main activity or accomplishment\n";
+    $prompt .= "- Professional, formal tone suitable for academic documentation\n";
+    $prompt .= "- No titles, bullets, or section headers in the output\n";
 
     $requestData = [
         'messages' => [
@@ -503,7 +522,7 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
 
     // Use fallback mechanism
     $result = callAIWithFallback($requestData, QWEN_TEXT_MODEL, FALLBACK_TEXT_MODEL, AI_TIMEOUT);
-    
+
     if ($result['success']) {
         if ($result['used_fallback']) {
             error_log("Enhance description used fallback model: " . $result['model']);
@@ -584,7 +603,7 @@ function deleteEntry() {
 
     // Delete image files
     foreach ($images as $image) {
-        $filePath = __DIR__ . '/' . $image['image_path'];
+        $filePath = __DIR__ . '/../' . $image['image_path'];
         if (file_exists($filePath)) {
             unlink($filePath);
         }
@@ -619,7 +638,14 @@ function updateDescription() {
 
     $pdo = getDbConnection();
 
-    $stmt = $pdo->prepare("UPDATE ojt_entries SET ai_enhanced_description = :description WHERE id = :id");
+    // Update both user_description and ai_enhanced_description
+    // When user manually edits, both fields should reflect the change
+    $stmt = $pdo->prepare("
+        UPDATE ojt_entries 
+        SET user_description = :description, 
+            ai_enhanced_description = :description 
+        WHERE id = :id
+    ");
     $stmt->execute([
         ':description' => $description,
         ':id' => $id
@@ -758,6 +784,11 @@ function generateISPSCReport() {
         $entry['images'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    // Get student info
+    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
+    $stmt->execute();
+    $studentInfo = $stmt->fetch() ?: [];
+
     // Build comprehensive context from ALL entries
     $entriesContext = [];
     foreach ($entries as $entry) {
@@ -772,23 +803,38 @@ function generateISPSCReport() {
     $endDate = date('M j, Y', strtotime(end($entries)['entry_date']));
     $totalDays = count($entries);
 
-    // Generate Chapter I: Company Profile (AI-powered based on ALL entries)
-    $chapter1Prompt = "From these OJT entries, write Chapter I (3 sections, 2-3 sentences each):\n";
-    $chapter1Prompt .= "1. INTRODUCTION - Infer company name, location, nature of business from entries\n";
-    $chapter1Prompt .= "2. DURATION - Use the date range from entries\n";
-    $chapter1Prompt .= "3. PURPOSE - Infer role and objectives from activities\n\n";
-    $chapter1Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
-    $chapter1Prompt .= "Write Chapter I:";
+    // Use student info if available, otherwise generate with AI
+    $studentName = $studentInfo['student_name'] ?? '';
+    $companyName = $studentInfo['company_name'] ?? '';
+    $companyAddress = $studentInfo['company_address'] ?? '';
+    $studentRole = $studentInfo['student_role'] ?? '';
+    
+    // Chapter I - Use stored info or generate
+    if (!empty($studentInfo['introduction'])) {
+        $chapter1 = $studentInfo['introduction'];
+    } else {
+        $chapter1Prompt = "From these OJT entries, write Chapter I (3 sections, 2-3 sentences each):\n";
+        $chapter1Prompt .= "1. INTRODUCTION - Infer company name, location, nature of business from entries\n";
+        $chapter1Prompt .= "2. DURATION - Use the date range from entries\n";
+        $chapter1Prompt .= "3. PURPOSE - Infer role and objectives from activities\n\n";
+        if (!empty($companyName)) $chapter1Prompt .= "Company: {$companyName}\n";
+        if (!empty($companyAddress)) $chapter1Prompt .= "Location: {$companyAddress}\n";
+        $chapter1Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
+        $chapter1Prompt .= "Write Chapter I:";
+        $chapter1 = callAIAPI($chapter1Prompt, 'Write OJT Company Profile based on entry context. Formal tone, max 150 words.', QWEN_TEXT_MODEL);
+    }
 
-    $chapter1 = callAIAPI($chapter1Prompt, 'Write OJT Company Profile based on entry context. Formal tone, max 150 words.', QWEN_TEXT_MODEL);
-
-    // Generate Chapter II: Background ONLY (AI-powered) - Activities table will use actual entries
-    $chapter2BackgroundPrompt = "From these OJT entries, write BACKGROUND OF ACTION PLAN (2-3 sentences):\n";
-    $chapter2BackgroundPrompt .= "Describe the preparation and planning before starting the immersion based on the activities shown.\n\n";
-    $chapter2BackgroundPrompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
-    $chapter2BackgroundPrompt .= "Write Background section:";
-
-    $chapter2Background = callAIAPI($chapter2BackgroundPrompt, 'Write OJT background section. Formal tone, max 100 words.', QWEN_TEXT_MODEL);
+    // Chapter II - Use stored info or generate
+    if (!empty($studentInfo['purpose_role'])) {
+        $chapter2Purpose = $studentInfo['purpose_role'];
+    } else {
+        $chapter2BackgroundPrompt = "From these OJT entries, write BACKGROUND OF ACTION PLAN (2-3 sentences):\n";
+        $chapter2BackgroundPrompt .= "Describe the preparation and planning before starting the immersion based on the activities shown.\n\n";
+        $chapter2BackgroundPrompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
+        $chapter2BackgroundPrompt .= "Write Background section:";
+        $chapter2Background = callAIAPI($chapter2BackgroundPrompt, 'Write OJT background section. Formal tone, max 100 words.', QWEN_TEXT_MODEL);
+        $chapter2Purpose = $chapter2Background;
+    }
 
     // Chapter II Activities Table - Use ACTUAL entries with AI-enhanced descriptions
     $activitiesTableRows = [];
@@ -796,23 +842,25 @@ function generateISPSCReport() {
         $date = date('M j, Y', strtotime($entry['entry_date']));
         $dayNum = $index + 1;
         $activity = htmlspecialchars($entry['title'], ENT_QUOTES, 'UTF-8');
-        // Use AI-enhanced description (from when entry was created)
         $remarks = htmlspecialchars($entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description', ENT_QUOTES, 'UTF-8');
         $activitiesTableRows[] = "| Day {$dayNum}<br>{$date} | {$activity} | {$remarks} |";
     }
     $activitiesTable = "| Day/Date | Activity | Remarks |\n| --- | --- | --- |\n" . implode("\n", $activitiesTableRows);
 
     // Combine Chapter II
-    $chapter2 = "### BACKGROUND OF THE ACTION PLAN\n\n{$chapter2Background}\n\n### PROGRAM OF ACTIVITIES – PER DAY\n\n{$activitiesTable}";
+    $chapter2 = "### BACKGROUND OF THE ACTION PLAN\n\n{$chapter2Purpose}\n\n### PROGRAM OF ACTIVITIES – PER DAY\n\n{$activitiesTable}";
 
-    // Generate Chapter III: Conclusion & Recommendations (AI-powered based on ALL entries)
-    $chapter3Prompt = "From these OJT entries, write Chapter III (2 sections, 2-3 sentences each):\n";
-    $chapter3Prompt .= "1. CONCLUSION - Summarize learnings, skills gained, growth based on activities\n";
-    $chapter3Prompt .= "2. RECOMMENDATION - Suggestions for: (a) future OJT students, (b) company, (c) ISPSC\n\n";
-    $chapter3Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
-    $chapter3Prompt .= "Write Chapter III:";
-
-    $chapter3 = callAIAPI($chapter3Prompt, 'Write OJT conclusion and recommendations. Formal, concise, max 150 words.', QWEN_TEXT_MODEL);
+    // Chapter III - Use stored info or generate
+    if (!empty($studentInfo['conclusion']) && !empty($studentInfo['recommendations'])) {
+        $chapter3 = "### CONCLUSION\n\n{$studentInfo['conclusion']}\n\n### RECOMMENDATIONS\n\n{$studentInfo['recommendations']}";
+    } else {
+        $chapter3Prompt = "From these OJT entries, write Chapter III (2 sections, 2-3 sentences each):\n";
+        $chapter3Prompt .= "1. CONCLUSION - Summarize learnings, skills gained, growth based on activities\n";
+        $chapter3Prompt .= "2. RECOMMENDATION - Suggestions for: (a) future OJT students, (b) company, (c) ISPSC\n\n";
+        $chapter3Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
+        $chapter3Prompt .= "Write Chapter III:";
+        $chapter3 = callAIAPI($chapter3Prompt, 'Write OJT conclusion and recommendations. Formal, concise, max 150 words.', QWEN_TEXT_MODEL);
+    }
 
     jsonResponse([
         'success' => true,
@@ -825,6 +873,9 @@ function generateISPSCReport() {
             'end_date' => $endDate,
             'total_days' => $totalDays,
             'entry_count' => count($entries),
+            'student_name' => $studentName,
+            'company_name' => $companyName,
+            'student_role' => $studentRole,
             'debug_context' => $fullContext // For debugging
         ]
     ]);
@@ -857,13 +908,24 @@ function generateDownloadReport() {
         $entry['images'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    // Get student info
+    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
+    $stmt->execute();
+    $studentInfo = $stmt->fetch() ?: [];
+
     // Get date range
     $startDate = date('F j, Y', strtotime($entries[0]['entry_date']));
     $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
     $totalDays = count($entries);
 
-    // Get student name from first entry title (or use default)
-    $studentName = 'JUAN DELA CRUZ';
+    // Get student name from database or use default
+    $studentName = $studentInfo['student_name'] ?? 'JUAN DELA CRUZ';
+    $companyName = $studentInfo['company_name'] ?? '';
+    $studentRole = $studentInfo['student_role'] ?? '';
+    $introduction = $studentInfo['introduction'] ?? '';
+    $purposeRole = $studentInfo['purpose_role'] ?? '';
+    $conclusion = $studentInfo['conclusion'] ?? '';
+    $recommendations = $studentInfo['recommendations'] ?? '';
 
     jsonResponse([
         'success' => true,
@@ -872,7 +934,13 @@ function generateDownloadReport() {
             'start_date' => $startDate,
             'end_date' => $endDate,
             'total_days' => $totalDays,
-            'student_name' => $studentName
+            'student_name' => $studentName,
+            'company_name' => $companyName,
+            'student_role' => $studentRole,
+            'introduction' => $introduction,
+            'purpose_role' => $purposeRole,
+            'conclusion' => $conclusion,
+            'recommendations' => $recommendations
         ]
     ]);
 }
@@ -883,35 +951,35 @@ function generateDownloadReport() {
 function bulkDelete() {
     $input = json_decode(file_get_contents('php://input'), true);
     $ids = $input['ids'] ?? [];
-    
+
     if (empty($ids)) {
         jsonResponse(['error' => 'No entry IDs provided'], 400);
     }
-    
+
     // Validate IDs are integers
     $ids = array_map('intval', $ids);
     $ids = array_filter($ids, function($id) { return $id > 0; });
-    
+
     if (empty($ids)) {
         jsonResponse(['error' => 'Invalid entry IDs'], 400);
     }
-    
+
     $pdo = getDbConnection();
-    
+
     try {
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id IN ($placeholders)");
         $stmt->execute($ids);
-        
+
         $deletedCount = $stmt->rowCount();
-        
+
         Logger::info('Bulk delete completed', ['deleted' => $deletedCount, 'requested' => count($ids)]);
-        
+
         jsonResponse([
             'success' => true,
             'deleted_count' => $deletedCount
         ]);
-        
+
     } catch (PDOException $e) {
         Logger::error('Bulk delete failed', ['error' => $e->getMessage()]);
         jsonResponse(['error' => 'Failed to delete entries'], 500);
@@ -936,12 +1004,226 @@ function getUploadErrorMessage($errorCode) {
 }
 
 /**
+ * Save student information
+ */
+function saveStudentInfo() {
+    $data = json_decode(file_get_contents('php://input'), true);
+    
+    $studentName = sanitizeInput($data['student_name'] ?? '', 'text', 200);
+    $companyName = sanitizeInput($data['company_name'] ?? '', 'text', 200);
+    $companyAddress = sanitizeInput($data['company_address'] ?? '', 'text', 500);
+    $studentRole = sanitizeInput($data['student_role'] ?? '', 'text', 200);
+    $introduction = sanitizeInput($data['introduction'] ?? '', 'text', 2000);
+    $purposeRole = sanitizeInput($data['purpose_role'] ?? '', 'text', 2000);
+    $conclusion = sanitizeInput($data['conclusion'] ?? '', 'text', 2000);
+    $recommendations = sanitizeInput($data['recommendations'] ?? '', 'text', 2000);
+
+    if (empty($studentName) || empty($companyName)) {
+        jsonResponse(['error' => 'Student name and company name are required'], 400);
+    }
+
+    $pdo = getDbConnection();
+
+    // Check if record exists
+    $stmt = $pdo->prepare("SELECT id FROM student_info WHERE id = 1");
+    $stmt->execute();
+    $exists = $stmt->fetch();
+
+    if ($exists) {
+        $stmt = $pdo->prepare("
+            UPDATE student_info SET
+                student_name = :student_name,
+                company_name = :company_name,
+                company_address = :company_address,
+                student_role = :student_role,
+                introduction = :introduction,
+                purpose_role = :purpose_role,
+                conclusion = :conclusion,
+                recommendations = :recommendations,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 1
+        ");
+    } else {
+        $stmt = $pdo->prepare("
+            INSERT INTO student_info (id, student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations)
+            VALUES (1, :student_name, :company_name, :company_address, :student_role, :introduction, :purpose_role, :conclusion, :recommendations)
+        ");
+    }
+
+    $stmt->execute([
+        ':student_name' => $studentName,
+        ':company_name' => $companyName,
+        ':company_address' => $companyAddress,
+        ':student_role' => $studentRole,
+        ':introduction' => $introduction,
+        ':purpose_role' => $purposeRole,
+        ':conclusion' => $conclusion,
+        ':recommendations' => $recommendations
+    ]);
+
+    jsonResponse(['success' => true]);
+}
+
+/**
+ * Get student information
+ */
+function getStudentInfo() {
+    $pdo = getDbConnection();
+
+    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
+    $stmt->execute();
+    $info = $stmt->fetch();
+
+    if (!$info) {
+        jsonResponse([
+            'success' => true,
+            'info' => [
+                'student_name' => '',
+                'company_name' => '',
+                'company_address' => '',
+                'student_role' => '',
+                'introduction' => '',
+                'purpose_role' => '',
+                'conclusion' => '',
+                'recommendations' => ''
+            ]
+        ]);
+    }
+
+    jsonResponse(['success' => true, 'info' => $info]);
+}
+
+/**
+ * Generate chapter content using AI
+ */
+function generateChapterAI() {
+    if (!isApiKeyConfigured()) {
+        jsonResponse(['error' => 'API key not configured'], 500);
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $chapter = $data['chapter'] ?? '';
+    $context = $data['context'] ?? [];
+
+    if (empty($chapter)) {
+        jsonResponse(['error' => 'Chapter type is required'], 400);
+    }
+
+    $pdo = getDbConnection();
+
+    // Get all entries for context
+    $stmt = $pdo->prepare("
+        SELECT id, title, user_description, entry_date, ai_enhanced_description
+        FROM ojt_entries
+        ORDER BY entry_date ASC
+    ");
+    $stmt->execute();
+    $entries = $stmt->fetchAll();
+
+    // Build entries context
+    $entriesContext = [];
+    foreach ($entries as $entry) {
+        $date = date('M j, Y', strtotime($entry['entry_date']));
+        $desc = $entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description';
+        $entriesContext[] = "[$date] {$entry['title']}: " . substr($desc, 0, 200);
+    }
+    $fullContext = implode("\n\n", $entriesContext);
+
+    $prompt = '';
+    $systemPrompt = 'Write formal OJT report content. Professional tone, concise. Do NOT include chapter titles, headers, or section markers like "### Chapter" or "Chapter I:". Start directly with the content.';
+
+    switch ($chapter) {
+        case 'chapter1':
+        case 'chapter1_intro':
+            $prompt = "Write INTRODUCTION for OJT report (2 paragraphs):\n";
+            $prompt .= "1. Introduce the company/organization and its nature of business\n";
+            $prompt .= "2. State the purpose of OJT immersion\n\n";
+            if (!empty($context['company_name'])) {
+                $prompt .= "Company Name: {$context['company_name']}\n";
+            }
+            if (!empty($context['company_address'])) {
+                $prompt .= "Location: {$context['company_address']}\n";
+            }
+            if (!empty($context['student_role'])) {
+                $prompt .= "Student Role: {$context['student_role']}\n";
+            }
+            if (!empty($context['brief_description'])) {
+                $prompt .= "User's brief notes: {$context['brief_description']}\n";
+            }
+            if (!empty($fullContext)) {
+                $prompt .= "\nOJT Activities Context:\n{$fullContext}\n";
+            }
+            $prompt .= "\nWrite the introduction. DO NOT start with '###', 'Chapter', 'INTRODUCTION:', or any header. Start directly with the content.";
+            break;
+
+        case 'chapter2':
+        case 'chapter2_purpose':
+            $prompt = "Write PURPOSE/ROLE TO THE COMPANY for OJT report (2 paragraphs):\n";
+            $prompt .= "1. Describe the student's role and responsibilities\n";
+            $prompt .= "2. Explain contributions to the company\n";
+            $prompt .= "3. Discuss skills applied in real work environment\n\n";
+            if (!empty($context['student_role'])) {
+                $prompt .= "Student Role: {$context['student_role']}\n";
+            }
+            if (!empty($context['company_name'])) {
+                $prompt .= "Company: {$context['company_name']}\n";
+            }
+            if (!empty($context['brief_description'])) {
+                $prompt .= "User's brief notes: {$context['brief_description']}\n";
+            }
+            if (!empty($fullContext)) {
+                $prompt .= "\nOJT Activities Context:\n{$fullContext}\n";
+            }
+            $prompt .= "\nWrite the purpose/role section. DO NOT start with '###', 'Chapter', 'PURPOSE:', or any header. Start directly with the content.";
+            break;
+
+        case 'chapter3':
+        case 'chapter3_conclusion':
+            $prompt = "Write CONCLUSION for OJT report (2 paragraphs):\n";
+            $prompt .= "- Summarize learnings and skills gained from the OJT\n";
+            $prompt .= "- Reflect on professional growth and development\n\n";
+            if (!empty($fullContext)) {
+                $prompt .= "OJT Activities:\n{$fullContext}\n";
+            }
+            $prompt .= "\nWrite the conclusion. DO NOT start with '###', 'Chapter', 'CONCLUSION:', or any header. Start directly with the content.";
+            break;
+
+        case 'chapter3_recommendations':
+            $prompt = "Write RECOMMENDATIONS for OJT report (bullet points or short paragraphs):\n";
+            $prompt .= "- Suggestions for future OJT students\n";
+            $prompt .= "- Suggestions for the company\n";
+            $prompt .= "- Suggestions for the school/ISPSC\n\n";
+            if (!empty($fullContext)) {
+                $prompt .= "OJT Activities Context:\n{$fullContext}\n";
+            }
+            $prompt .= "\nWrite the recommendations. DO NOT start with '###', 'Chapter', 'RECOMMENDATIONS:', or any header. Start directly with the content.";
+            break;
+
+        default:
+            jsonResponse(['error' => 'Invalid chapter type'], 400);
+    }
+
+    $result = callAIAPI($prompt, $systemPrompt, QWEN_TEXT_MODEL);
+
+    // Clean up any chapter headers that might still be in the response
+    $content = $result;
+    $content = preg_replace('/^#+\s*(Chapter\s*[I-V]+|INTRODUCTION|PURPOSE|CONCLUSION|RECOMMENDATIONS)[:\s]*\n*/im', '', $content);
+    $content = trim($content);
+
+    jsonResponse([
+        'success' => true,
+        'content' => $content,
+        'chapter' => $chapter
+    ]);
+}
+
+/**
  * Send JSON response
  */
 function jsonResponse($data, $statusCode = 200) {
     // Clear any buffered output
     ob_end_clean();
-    
+
     // Send JSON response
     http_response_code($statusCode);
     header('Content-Type: application/json');

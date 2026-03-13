@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OJT Journal Report Generator - Frontend JavaScript
  * Handles form submission, image uploads, and AI-powered enhancements
  */
@@ -216,7 +216,7 @@ async function handleSubmit(e) {
         // Get CSRF token from meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         
-        const response = await fetch('process.php?action=createEntry', {
+        const response = await fetch('src/process.php?action=createEntry', {
             method: 'POST',
             headers: {
                 'X-CSRF-Token': csrfToken || ''
@@ -370,7 +370,7 @@ async function loadWeeklyReport() {
     narrativeContainer.classList.remove('show');
 
     try {
-        const response = await fetch('process.php?action=getWeekly');
+        const response = await fetch('src/process.php?action=getWeekly');
         const responseText = await response.text();
         console.log('Raw response:', responseText);
         
@@ -541,7 +541,7 @@ async function saveDescription(id) {
         // Get CSRF token from meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-        const response = await fetch('process.php?action=updateDescription', {
+        const response = await fetch('src/process.php?action=updateDescription', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -720,7 +720,7 @@ async function performDelete(id, cardElement) {
         // Get CSRF token from meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-        const response = await fetch('process.php?action=delete', {
+        const response = await fetch('src/process.php?action=delete', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -771,7 +771,7 @@ async function handleGenerateNarrative() {
     }
 
     try {
-        const response = await fetch('process.php?action=generateNarrative');
+        const response = await fetch('src/process.php?action=generateNarrative');
         const result = await response.json();
 
         if (result.success) {
@@ -875,7 +875,7 @@ async function handleGenerateDownloadReport() {
     `;
 
     try {
-        const response = await fetch('process.php?action=generateDownloadReport');
+        const response = await fetch('src/process.php?action=generateDownloadReport');
         const result = await response.json();
 
         if (result.success) {
@@ -1454,7 +1454,7 @@ function handleDownloadPdf() {
  */
 async function loadStudentInfo() {
     try {
-        const response = await fetch('process.php?action=getStudentInfo');
+        const response = await fetch('src/process.php?action=getStudentInfo');
         const data = await response.json();
 
         if (data.success && data.info) {
@@ -1494,7 +1494,7 @@ async function handleStudentInfoSubmit(e) {
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         
-        const response = await fetch('process.php?action=saveStudentInfo', {
+        const response = await fetch('src/process.php?action=saveStudentInfo', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1608,7 +1608,7 @@ async function generateSectionAI(section) {
     try {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         
-        const response = await fetch('process.php?action=generateChapterAI', {
+        const response = await fetch('src/process.php?action=generateChapterAI', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

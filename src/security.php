@@ -295,18 +295,25 @@ function moveUploadedFileSecurely($file, $destination, $secureName) {
             return ['success' => false, 'error' => 'Failed to create upload directory'];
         }
     }
-    
+
     $targetPath = rtrim($destination, '/') . DIRECTORY_SEPARATOR . $secureName;
-    
+
     // Use move_uploaded_file for security
     if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+        // Convert absolute path to relative web path
+        // Find project root by looking for the 'src' directory
+        $relativePath = str_replace('\\', '/', $targetPath);
+        if (strpos($relativePath, '/storage/') !== false) {
+            $relativePath = substr($relativePath, strpos($relativePath, '/storage/') + 1);
+        }
+        
         return [
             'success' => true,
             'path' => $targetPath,
-            'url' => str_replace('\\', '/', $targetPath)
+            'url' => $relativePath
         ];
     }
-    
+
     return ['success' => false, 'error' => 'Failed to save uploaded file'];
 }
 
