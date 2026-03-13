@@ -481,14 +481,14 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
  */
 function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = '') {
     // Optimized prompt: direct, token-efficient
-    $prompt = "Enhance this OJT journal entry for a weekly report. Make it professional and detailed.\n\n";
+    $prompt = "Enhance this OJT journal entry for a daily report. Make it professional and detailed.\n\n";
     $prompt .= "Entry: {$userDescription}\n";
 
     if (!empty($imageContext)) {
         $prompt .= "Image context: {$imageContext}\n";
     }
 
-    $prompt .= "\nWrite 2 paragraphs: (1) what was done, (2) skills learned. Professional tone. No titles, bullets, or 'Here's/In this'.";
+    $prompt .= "\nWrite 2 paragraphs: (1) what was done today, (2) skills learned today. Professional tone. No titles, bullets, or 'Here's/In this'.";
 
     $requestData = [
         'messages' => [
