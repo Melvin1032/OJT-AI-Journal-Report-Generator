@@ -619,7 +619,14 @@ function updateDescription() {
 
     $pdo = getDbConnection();
 
-    $stmt = $pdo->prepare("UPDATE ojt_entries SET ai_enhanced_description = :description WHERE id = :id");
+    // Update both user_description and ai_enhanced_description
+    // When user manually edits, both fields should reflect the change
+    $stmt = $pdo->prepare("
+        UPDATE ojt_entries 
+        SET user_description = :description, 
+            ai_enhanced_description = :description 
+        WHERE id = :id
+    ");
     $stmt->execute([
         ':description' => $description,
         ':id' => $id

@@ -456,23 +456,27 @@ function editDescription(id) {
 async function saveDescription(id) {
     const editTextarea = document.getElementById(`edit-desc-${id}`);
     const newDescription = editTextarea.value.trim();
-    
+
     if (!newDescription) {
         showStatus('Description cannot be empty', 'error');
         return;
     }
-    
+
     try {
+        // Get CSRF token from meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
         const response = await fetch('process.php?action=updateDescription', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken || ''
             },
             body: JSON.stringify({ id, description: newDescription })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             const descParagraph = document.getElementById(`desc-${id}`);
             descParagraph.textContent = newDescription;
