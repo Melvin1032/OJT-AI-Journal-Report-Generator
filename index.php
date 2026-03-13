@@ -257,14 +257,6 @@ $csrfToken = generateCSRFToken();
                         </svg>
                         Download Report
                     </button>
-                    <button class="btn btn-outline" id="aiReportBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                            <path d="M2 17l10 5 10-5"/>
-                            <path d="M2 12l10 5 10-5"/>
-                        </svg>
-                        ✨ AI Report
-                    </button>
                     <button class="btn btn-outline" id="refreshBtn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="23 4 23 10 17 10"/>
@@ -327,45 +319,6 @@ $csrfToken = generateCSRFToken();
                     </div>
                     <div class="download-report-content" id="downloadReportContent">
                         <!-- Report content will be loaded here -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- AI Report Modal -->
-            <div class="download-report-modal" id="aiReportModal">
-                <div class="download-report-overlay"></div>
-                <div class="download-report-container">
-                    <div class="download-report-header">
-                        <h2>✨ AI-Generated OJT Report</h2>
-                        <div class="download-report-actions">
-                            <button class="btn btn-outline" id="aiDownloadWordBtn">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                                Download Word
-                            </button>
-                            <button class="btn btn-outline" id="aiDownloadPdfBtn">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                </svg>
-                                Download PDF
-                            </button>
-                            <button class="btn btn-primary" id="aiPrintBtn">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="6 9 6 2 18 2 18 9"/>
-                                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                                    <rect x="6" y="14" width="12" height="8"/>
-                                </svg>
-                                Print
-                            </button>
-                            <button class="btn btn-secondary" id="closeAIReportBtn">&times; Close</button>
-                        </div>
-                    </div>
-                    <div class="download-report-content" id="aiReportContent">
-                        <!-- AI-generated report content will be loaded here -->
                     </div>
                 </div>
             </div>

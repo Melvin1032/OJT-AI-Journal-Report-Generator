@@ -873,6 +873,9 @@ function generateISPSCReport() {
             'end_date' => $endDate,
             'total_days' => $totalDays,
             'entry_count' => count($entries),
+            'student_name' => $studentName,
+            'company_name' => $companyName,
+            'student_role' => $studentRole,
             'debug_context' => $fullContext // For debugging
         ]
     ]);

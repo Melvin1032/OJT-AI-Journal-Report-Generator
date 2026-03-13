@@ -12,68 +12,21 @@ const printDownloadBtn = document.getElementById('printDownloadBtn');
 const downloadWordBtn = document.getElementById('downloadWordBtn');
 const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 
-// DOM Elements for AI Report
-const aiReportBtn = document.getElementById('aiReportBtn');
-const aiReportModal = document.getElementById('aiReportModal');
-const aiReportContent = document.getElementById('aiReportContent');
-const closeAIReportBtn = document.getElementById('closeAIReportBtn');
-const aiPrintBtn = document.getElementById('aiPrintBtn');
-const aiDownloadWordBtn = document.getElementById('aiDownloadWordBtn');
-const aiDownloadPdfBtn = document.getElementById('aiDownloadPdfBtn');
-
 // State
 let downloadReportCache = null;
-let aiReportCache = null;
 
 /**
  * Initialize Download Report event listeners
  */
 function initializeDownloadReport() {
-    // Download Report button
     downloadReportBtn.addEventListener('click', handleGenerateDownloadReport);
-
-    // Close Download button
-    closeDownloadBtn.addEventListener('click', () => {
-        downloadReportModal.classList.remove('show');
-    });
-
-    // Print Download button
+    closeDownloadBtn.addEventListener('click', () => { downloadReportModal.classList.remove('show'); });
     printDownloadBtn.addEventListener('click', handlePrintDownloadReport);
-
-    // Download Word button
     downloadWordBtn.addEventListener('click', handleDownloadWord);
-
-    // Download PDF button
     downloadPdfBtn.addEventListener('click', handleDownloadPdf);
-
-    // Close modal on overlay click
     downloadReportModal.addEventListener('click', (e) => {
         if (e.target.classList.contains('download-report-overlay')) {
             downloadReportModal.classList.remove('show');
-        }
-    });
-
-    // AI Report button
-    aiReportBtn.addEventListener('click', handleGenerateAIReport);
-
-    // Close AI Report button
-    closeAIReportBtn.addEventListener('click', () => {
-        aiReportModal.classList.remove('show');
-    });
-
-    // AI Print button
-    aiPrintBtn.addEventListener('click', handlePrintAIReport);
-
-    // AI Download Word button
-    aiDownloadWordBtn.addEventListener('click', handleDownloadAIWord);
-
-    // AI Download PDF button
-    aiDownloadPdfBtn.addEventListener('click', handleDownloadAIPdf);
-
-    // Close AI modal on overlay click
-    aiReportModal.addEventListener('click', (e) => {
-        if (e.target.classList.contains('download-report-overlay')) {
-            aiReportModal.classList.remove('show');
         }
     });
 }
