@@ -283,60 +283,6 @@ $csrfToken = generateCSRFToken();
                 <span class="entry-count" id="entryCount">0 entries</span>
             </div>
 
-            <!-- AI Agents Section -->
-            <div class="ai-agents-container" id="aiAgentsContainer">
-                <div class="agents-header">
-                    <h3>🤖 AI Agents</h3>
-                    <p class="agents-subtitle">Advanced AI-powered tools for intelligent report generation</p>
-                </div>
-                
-                <div class="agents-grid">
-                    <div class="agent-card" data-agent="narrative">
-                        <div class="agent-icon">📝</div>
-                        <h4>Narrative Agent</h4>
-                        <p>Generates intelligent weekly narrative reports with theme analysis</p>
-                        <button class="btn btn-primary btn-sm" onclick="runAgent('narrative')">Run Agent</button>
-                    </div>
-                    
-                    <div class="agent-card" data-agent="analysis">
-                        <div class="agent-icon">📊</div>
-                        <h4>Analysis Agent</h4>
-                        <p>Analyzes entries for skills, progress, and patterns</p>
-                        <button class="btn btn-primary btn-sm" onclick="runAgent('analysis')">Run Agent</button>
-                    </div>
-                    
-                    <div class="agent-card" data-agent="quality">
-                        <div class="agent-icon">✅</div>
-                        <h4>Quality Agent</h4>
-                        <p>Reviews and suggests improvements for your entries</p>
-                        <button class="btn btn-primary btn-sm" onclick="runAgent('quality')">Run Agent</button>
-                    </div>
-                    
-                    <div class="agent-card" data-agent="portfolio" data-featured="true">
-                        <div class="agent-icon">📜</div>
-                        <h4>Portfolio Agent</h4>
-                        <p>Generates complete OJT report with all chapters</p>
-                        <button class="btn btn-primary btn-sm" onclick="runAgent('portfolio')">Run Agent</button>
-                        <span class="featured-badge">Recommended</span>
-                    </div>
-                </div>
-                
-                <div class="agent-result-container" id="agentResultContainer">
-                    <div class="agent-result-header">
-                        <h4 id="agentResultTitle">Agent Result</h4>
-                        <button class="btn btn-sm btn-outline" onclick="closeAgentResult()">×</button>
-                    </div>
-                    <div class="agent-result-content" id="agentResultContent">
-                        <div class="agent-loading" id="agentLoading">
-                            <div class="spinner"></div>
-                            <p>AI Agent is working...</p>
-                            <p class="agent-status" id="agentStatus">Initializing...</p>
-                        </div>
-                        <div class="agent-output" id="agentOutput"></div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Narrative Report Section -->
             <div class="narrative-container" id="narrativeContainer">
                 <div class="narrative-header">
@@ -486,7 +432,6 @@ $csrfToken = generateCSRFToken();
     <script src="assets/js/utils.js"></script>
     <script src="assets/js/script.js"></script>
     <script src="assets/js/print-report.js"></script>
-    <script src="assets/js/agents.js"></script>
     <script src="assets/js/chatbot.js"></script>
 </body>
 </html>

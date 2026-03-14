@@ -1,3 +1,9 @@
+<?php
+// Start session for dashboard features - MUST be before any HTML output
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,13 +12,14 @@
     <title>AI Agents Dashboard - OJT Journal Report Generator</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <style>
-        /* Dashboard Specific Styles */
+        /* Dashboard Layout */
         .dashboard-container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 2rem;
         }
 
+        /* Header */
         .dashboard-header {
             background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
             color: white;
@@ -21,25 +28,16 @@
             margin-bottom: 2rem;
             box-shadow: var(--shadow-lg);
         }
-    </style>
-</head>
-<body>
-<?php
-// Start session for dashboard features
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-?>
-    <div class="dashboard-container">
 
         .dashboard-header h1 {
             margin: 0 0 0.5rem 0;
             font-size: 2rem;
+            font-weight: 700;
         }
 
         .dashboard-header p {
-            margin: 0;
-            opacity: 0.9;
+            margin: 0 0 1rem 0;
+            opacity: 0.95;
             font-size: 1rem;
         }
 
@@ -49,20 +47,103 @@ if (session_status() === PHP_SESSION_NONE) {
             gap: 0.5rem;
             background: rgba(255, 255, 255, 0.2);
             color: white;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
             border-radius: 8px;
             text-decoration: none;
-            margin-top: 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
             transition: var(--transition);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .back-button:hover {
             background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-3px);
         }
 
+        /* Stats Grid */
+        .agent-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+        }
+
+        .quick-actions h3 {
+            margin: 0 0 1rem 0;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .quick-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .quick-action-btn {
+            background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+            border: 2px solid var(--border-color);
+            padding: 1.25rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: center;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .quick-action-btn:hover {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+            color: white;
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Agents Grid */
         .agents-overview {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -70,23 +151,25 @@ if (session_status() === PHP_SESSION_NONE) {
         .agent-card-large {
             background: var(--bg-secondary);
             border-radius: var(--border-radius);
-            padding: 2rem;
+            padding: 1.75rem;
             border: 2px solid var(--border-color);
             transition: var(--transition);
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            box-shadow: var(--shadow-sm);
         }
 
         .agent-card-large:hover {
             border-color: var(--primary-color);
-            transform: translateY(-4px);
+            transform: translateY(-5px);
             box-shadow: var(--shadow-lg);
         }
 
         .agent-card-large.featured {
             border-color: var(--primary-color);
-            background: linear-gradient(135deg, var(--bg-secondary), rgba(79, 70, 229, 0.05));
+            background: linear-gradient(135deg, var(--bg-secondary), rgba(79, 70, 229, 0.08));
+            box-shadow: var(--shadow-md);
         }
 
         .agent-card-large.featured::before {
@@ -94,29 +177,33 @@ if (session_status() === PHP_SESSION_NONE) {
             position: absolute;
             top: 1rem;
             right: 1rem;
-            background: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
             color: white;
-            font-size: 0.75rem;
-            padding: 0.25rem 0.75rem;
+            font-size: 0.7rem;
+            padding: 0.3rem 0.8rem;
             border-radius: 20px;
-            font-weight: 600;
+            font-weight: 700;
+            letter-spacing: 0.5px;
         }
 
         .agent-icon-large {
             font-size: 3.5rem;
             margin-bottom: 1rem;
+            display: block;
         }
 
         .agent-card-large h3 {
             margin: 0 0 0.75rem 0;
             color: var(--text-primary);
-            font-size: 1.5rem;
+            font-size: 1.4rem;
+            font-weight: 600;
         }
 
         .agent-card-large p {
             color: var(--text-secondary);
-            margin: 0 0 1.5rem 0;
+            margin: 0 0 1.25rem 0;
             line-height: 1.6;
+            font-size: 0.95rem;
         }
 
         .agent-features {
@@ -131,13 +218,14 @@ if (session_status() === PHP_SESSION_NONE) {
             font-size: 0.9rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.6rem;
         }
 
         .agent-features li::before {
             content: '✓';
             color: var(--success-color);
-            font-weight: bold;
+            font-weight: 700;
+            font-size: 1.1rem;
         }
 
         .agent-actions {
@@ -146,17 +234,36 @@ if (session_status() === PHP_SESSION_NONE) {
             flex-wrap: wrap;
         }
 
+        .agent-actions .btn {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        /* Result Panel */
         .agent-result-panel {
             background: var(--bg-secondary);
             border-radius: var(--border-radius);
             padding: 2rem;
             margin-top: 2rem;
-            border: 1px solid var(--border-color);
+            border: 2px solid var(--border-color);
             display: none;
+            box-shadow: var(--shadow-lg);
         }
 
         .agent-result-panel.active {
             display: block;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .result-header {
@@ -165,7 +272,13 @@ if (session_status() === PHP_SESSION_NONE) {
             align-items: center;
             margin-bottom: 1.5rem;
             padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .result-header h2 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 1.5rem;
         }
 
         .result-content {
@@ -173,24 +286,9 @@ if (session_status() === PHP_SESSION_NONE) {
             color: var(--text-primary);
         }
 
-        .result-content h1,
-        .result-content h2,
-        .result-content h3 {
-            color: var(--text-primary);
-            margin-top: 1.5rem;
-        }
-
-        .result-content pre {
-            background: var(--bg-tertiary);
-            padding: 1rem;
-            border-radius: var(--border-radius-sm);
-            overflow-x: auto;
-            font-size: 0.9rem;
-        }
-
         .loading-panel {
             text-align: center;
-            padding: 3rem;
+            padding: 3rem 1rem;
         }
 
         .spinner-large {
@@ -210,97 +308,49 @@ if (session_status() === PHP_SESSION_NONE) {
         .status-text {
             color: var(--text-secondary);
             font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
         }
 
-        .agent-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: var(--bg-tertiary);
-            padding: 1.5rem;
-            border-radius: var(--border-radius);
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-
-        .stat-label {
-            color: var(--text-secondary);
+        .loading-substatus {
+            color: var(--text-muted);
             font-size: 0.9rem;
-            margin-top: 0.5rem;
+            animation: pulse 1.5s ease infinite;
         }
 
-        .quick-actions {
-            background: var(--bg-secondary);
-            padding: 1.5rem;
-            border-radius: var(--border-radius);
-            margin-bottom: 2rem;
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
-        .quick-actions h3 {
-            margin: 0 0 1rem 0;
+        /* Result Content */
+        .result-content {
+            line-height: 1.8;
             color: var(--text-primary);
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 1rem;
         }
 
-        .quick-actions-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
+        .result-content h4 {
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            font-size: 1.2rem;
         }
 
-        .quick-action-btn {
+        .result-content pre {
             background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
             padding: 1rem;
             border-radius: var(--border-radius-sm);
-            cursor: pointer;
-            transition: var(--transition);
-            text-align: center;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
 
-        .quick-action-btn:hover {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .notification {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            padding: 1rem 1.5rem;
-            border-radius: var(--border-radius);
-            color: white;
-            font-weight: 500;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
-        }
-
-        .notification.success {
-            background: var(--success-color);
-        }
-
-        .notification.error {
-            background: var(--error-color);
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+        .result-content .notification {
+            margin-bottom: 1rem;
         }
 
         /* Responsive */
@@ -319,6 +369,14 @@ if (session_status() === PHP_SESSION_NONE) {
 
             .agents-overview {
                 grid-template-columns: 1fr;
+            }
+
+            .agent-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .quick-actions-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
     </style>
@@ -390,12 +448,8 @@ if (session_status() === PHP_SESSION_NONE) {
                     <li>Auto-quality check</li>
                 </ul>
                 <div class="agent-actions">
-                    <button class="btn btn-primary" onclick="runAgent('narrative')">
-                        Run Agent
-                    </button>
-                    <button class="btn btn-outline" onclick="showAgentInfo('narrative')">
-                        Learn More
-                    </button>
+                    <button class="btn btn-primary" onclick="runAgent('narrative')">Run Agent</button>
+                    <button class="btn btn-outline" onclick="showAgentInfo('narrative')">Learn More</button>
                 </div>
             </div>
 
@@ -411,12 +465,8 @@ if (session_status() === PHP_SESSION_NONE) {
                     <li>Executive summaries</li>
                 </ul>
                 <div class="agent-actions">
-                    <button class="btn btn-primary" onclick="runAgent('analysis')">
-                        Run Agent
-                    </button>
-                    <button class="btn btn-outline" onclick="showAgentInfo('analysis')">
-                        Learn More
-                    </button>
+                    <button class="btn btn-primary" onclick="runAgent('analysis')">Run Agent</button>
+                    <button class="btn btn-outline" onclick="showAgentInfo('analysis')">Learn More</button>
                 </div>
             </div>
 
@@ -432,12 +482,8 @@ if (session_status() === PHP_SESSION_NONE) {
                     <li>Completeness verification</li>
                 </ul>
                 <div class="agent-actions">
-                    <button class="btn btn-primary" onclick="runAgent('quality')">
-                        Run Agent
-                    </button>
-                    <button class="btn btn-outline" onclick="showAgentInfo('quality')">
-                        Learn More
-                    </button>
+                    <button class="btn btn-primary" onclick="runAgent('quality')">Run Agent</button>
+                    <button class="btn btn-outline" onclick="showAgentInfo('quality')">Learn More</button>
                 </div>
             </div>
 
@@ -453,12 +499,8 @@ if (session_status() === PHP_SESSION_NONE) {
                     <li>Download ready</li>
                 </ul>
                 <div class="agent-actions">
-                    <button class="btn btn-primary" onclick="runAgent('portfolio')">
-                        Generate Report
-                    </button>
-                    <button class="btn btn-outline" onclick="showAgentInfo('portfolio')">
-                        Learn More
-                    </button>
+                    <button class="btn btn-primary" onclick="runAgent('portfolio')">Generate Report</button>
+                    <button class="btn btn-outline" onclick="showAgentInfo('portfolio')">Learn More</button>
                 </div>
             </div>
         </div>
@@ -473,15 +515,15 @@ if (session_status() === PHP_SESSION_NONE) {
                 <div class="loading-panel" id="loadingPanel">
                     <div class="spinner-large"></div>
                     <p class="status-text" id="statusText">AI Agent is working...</p>
-                    <p style="color: var(--text-muted); margin-top: 0.5rem;" id="subStatus">This may take 30-60 seconds</p>
+                    <p class="loading-substatus" id="subStatus">This may take 30-60 seconds</p>
                 </div>
-                <div class="result-content" id="actualResult"></div>
+                <div class="result-content" id="actualResult" style="display: none;"></div>
             </div>
         </div>
     </div>
 
     <script src="../assets/js/utils.js"></script>
-    <script src="../assets/js/agents.js"></script>
+    <script src="../assets/js/chatbot.js"></script>
     <script>
         // Dashboard-specific JavaScript
         let currentAgentRequest = null;
@@ -494,7 +536,6 @@ if (session_status() === PHP_SESSION_NONE) {
         // Load dashboard statistics
         async function loadDashboardStats() {
             try {
-                // Get entry count
                 const response = await fetch('../src/process.php?action=getWeekly');
                 const data = await response.json();
                 
@@ -502,11 +543,9 @@ if (session_status() === PHP_SESSION_NONE) {
                     document.getElementById('totalEntries').textContent = data.entries.length;
                 }
 
-                // Load completed tasks from localStorage
                 const completed = localStorage.getItem('agentTasksCompleted') || '0';
                 document.getElementById('tasksCompleted').textContent = completed;
 
-                // Load average quality if available
                 const avgQuality = localStorage.getItem('agentAvgQuality');
                 if (avgQuality) {
                     document.getElementById('avgQuality').textContent = avgQuality + '%';
@@ -516,12 +555,10 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
-        // Quick run functions
         function quickRun(agentType) {
             runAgent(agentType);
         }
 
-        // Run agent (overrides agents.js version for dashboard)
         async function runAgent(agentType) {
             const resultPanel = document.getElementById('resultPanel');
             const loadingPanel = document.getElementById('loadingPanel');
@@ -532,11 +569,11 @@ if (session_status() === PHP_SESSION_NONE) {
 
             // Show result panel
             resultPanel.classList.add('active');
-            resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            resultPanel.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-            // Reset
+            // Reset and show loading
             loadingPanel.style.display = 'block';
-            actualResult.innerHTML = '';
+            actualResult.style.display = 'none';
             
             // Set title
             const agentNames = {
@@ -547,14 +584,6 @@ if (session_status() === PHP_SESSION_NONE) {
             };
             resultTitle.textContent = agentNames[agentType] || 'AI Agent';
 
-            // Get CSRF token
-            const csrfToken = await getCSRFToken();
-
-            // Prepare request
-            const requestData = new FormData();
-            requestData.append('csrf_token', csrfToken);
-            requestData.append('type', 'default');
-
             try {
                 // Abort previous request
                 if (currentAgentRequest) {
@@ -564,9 +593,18 @@ if (session_status() === PHP_SESSION_NONE) {
                 const controller = new AbortController();
                 currentAgentRequest = controller;
 
-                // Update status based on agent type
+                // Update status
                 updateStatus(agentType, statusText, subStatus);
 
+                // Get CSRF token
+                const csrfToken = await getCSRFToken();
+
+                // Prepare request
+                const formData = new FormData();
+                formData.append('csrf_token', csrfToken);
+                formData.append('type', 'default');
+
+                // API endpoints
                 const endpoints = {
                     narrative: '../src/process.php?action=agent/narrative',
                     analysis: '../src/process.php?action=agent/analysis',
@@ -574,15 +612,18 @@ if (session_status() === PHP_SESSION_NONE) {
                     portfolio: '../src/process.php?action=agent/portfolio'
                 };
 
+                // Send request
                 const response = await fetch(endpoints[agentType], {
                     method: 'POST',
-                    body: requestData,
+                    body: formData,
                     signal: controller.signal
                 });
 
                 const result = await response.json();
 
+                // Hide loading, show result
                 loadingPanel.style.display = 'none';
+                actualResult.style.display = 'block';
 
                 if (result.success) {
                     displayResult(result, agentType);
@@ -591,17 +632,22 @@ if (session_status() === PHP_SESSION_NONE) {
                     // Update stats
                     incrementTasksCompleted();
                 } else {
-                    actualResult.innerHTML = `<div class="notification error">❌ ${result.error || 'Agent failed'}</div>`;
+                    actualResult.innerHTML = `<div class="notification error" style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--error-color); border-radius: var(--border-radius); color: var(--error-color);">❌ ${result.error || 'Agent failed'}</div>`;
+                    if (result.debug) {
+                        console.log('Debug info:', result.debug);
+                    }
                     showNotification('Agent failed: ' + (result.error || 'Unknown error'), 'error');
                 }
 
             } catch (error) {
                 loadingPanel.style.display = 'none';
+                actualResult.style.display = 'block';
                 
                 if (error.name === 'AbortError') {
-                    actualResult.innerHTML = '<div class="notification error">Request cancelled</div>';
+                    actualResult.innerHTML = '<div class="notification error" style="padding: 1rem;">Request cancelled</div>';
                 } else {
-                    actualResult.innerHTML = `<div class="notification error">❌ ${error.message}</div>`;
+                    console.error('Agent error:', error);
+                    actualResult.innerHTML = `<div class="notification error" style="padding: 1rem;">❌ ${error.message || 'Unknown error'}</div>`;
                     showNotification('Error: ' + error.message, 'error');
                 }
             } finally {
@@ -609,75 +655,117 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
-        // Update status message based on agent
         function updateStatus(agentType, statusText, subStatus) {
             const messages = {
-                narrative: {
-                    status: 'Generating narrative...',
-                    sub: 'Analyzing entries and identifying themes'
-                },
-                analysis: {
-                    status: 'Analyzing entries...',
-                    sub: 'Extracting skills and patterns'
-                },
-                quality: {
-                    status: 'Checking quality...',
-                    sub: 'Reviewing content and scoring'
-                },
-                portfolio: {
-                    status: 'Generating portfolio...',
-                    sub: 'Creating chapters and compiling report (may take 1-2 minutes)'
-                }
+                narrative: { status: 'Generating narrative...', sub: 'Analyzing entries and identifying themes' },
+                analysis: { status: 'Analyzing entries...', sub: 'Extracting skills and patterns' },
+                quality: { status: 'Checking quality...', sub: 'Reviewing content and scoring' },
+                portfolio: { status: 'Generating portfolio...', sub: 'Creating chapters and compiling report (may take 1-2 minutes)' }
             };
-
             const msg = messages[agentType] || { status: 'Processing...', sub: 'Please wait' };
             statusText.textContent = msg.status;
             subStatus.textContent = msg.sub;
         }
 
-        // Display result
         function displayResult(result, agentType) {
             const actualResult = document.getElementById('actualResult');
-            
             let html = '';
 
             switch (agentType) {
                 case 'narrative':
-                    html = `<div class="notification success">✓ Narrative Generated</div>`;
-                    html += `<div style="line-height: 1.8;">${formatMarkdown(result.narrative || '')}</div>`;
-                    if (result.themes) {
-                        html += `<h4>Themes Identified</h4><p>${(result.themes.themes || []).join(', ')}</p>`;
+                    html = `<div class="notification success" style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); border-radius: var(--border-radius); color: var(--success-color); margin-bottom: 1.5rem;">✓ Narrative Generated Successfully</div>`;
+                    if (result.narrative) {
+                        html += `<div style="line-height: 1.8; white-space: pre-wrap;">${formatMarkdown(result.narrative)}</div>`;
+                    }
+                    if (result.themes && result.themes.themes) {
+                        html += `<h4 style="margin-top: 1.5rem;">🎯 Themes Identified</h4>`;
+                        html += `<div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">`;
+                        result.themes.themes.forEach(theme => {
+                            html += `<span style="background: var(--primary-color); color: white; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.85rem;">${escapeHtml(theme)}</span>`;
+                        });
+                        html += `</div>`;
+                    }
+                    if (result.entry_count) {
+                        html += `<p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">📊 Generated from ${result.entry_count} entries</p>`;
                     }
                     break;
 
                 case 'analysis':
-                    html = `<div class="notification success">✓ Analysis Complete</div>`;
+                    html = `<div class="notification success" style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); border-radius: var(--border-radius); color: var(--success-color); margin-bottom: 1.5rem;">✓ Analysis Complete</div>`;
                     if (result.result) {
-                        html += `<pre>${JSON.stringify(result.result, null, 2)}</pre>`;
+                        if (result.result.summary) {
+                            html += `<h4>📊 Executive Summary</h4>`;
+                            html += `<div style="white-space: pre-wrap; line-height: 1.8;">${formatMarkdown(result.result.summary)}</div>`;
+                        }
+                        if (result.result.skills && result.result.skills.technical_skills) {
+                            html += `<h4 style="margin-top: 1.5rem;">🛠️ Technical Skills Detected</h4><ul style="line-height: 1.8;">`;
+                            result.result.skills.technical_skills.forEach(skill => {
+                                html += `<li><strong>${escapeHtml(skill.name)}</strong>${skill.evidence ? ' - ' + escapeHtml(skill.evidence) : ''}</li>`;
+                            });
+                            html += `</ul>`;
+                        }
+                        if (result.result.progress) {
+                            html += `<h4 style="margin-top: 1.5rem;">📈 Progress</h4>`;
+                            html += `<div style="white-space: pre-wrap; line-height: 1.8;">${formatMarkdown(result.result.progress.progress_summary || '')}</div>`;
+                        }
                     }
                     break;
 
                 case 'quality':
-                    html = `<div class="notification success">✓ Quality Check Complete</div>`;
+                    html = `<div class="notification success" style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); border-radius: var(--border-radius); color: var(--success-color); margin-bottom: 1.5rem;">✓ Quality Check Complete</div>`;
                     if (result.result) {
-                        if (result.result.average_score) {
-                            html += `<h3>Quality Score: ${result.result.average_score}% (${result.result.average_grade || 'N/A'})</h3>`;
+                        if (result.result.average_score !== undefined) {
+                            const score = result.result.average_score;
+                            const grade = result.result.average_grade || 'N/A';
+                            const scoreColor = score >= 80 ? 'var(--success-color)' : score >= 60 ? 'var(--warning-color)' : 'var(--error-color)';
+                            html += `<div style="text-align: center; padding: 1.5rem; background: var(--bg-tertiary); border-radius: var(--border-radius); margin-bottom: 1.5rem;">`;
+                            html += `<div style="font-size: 3rem; font-weight: 700; color: ${scoreColor};">${score}%</div>`;
+                            html += `<div style="font-size: 1.5rem; color: var(--text-secondary);">Grade: ${grade}</div>`;
+                            html += `</div>`;
                         }
                         if (result.result.overall_assessment) {
-                            html += `<p>${formatMarkdown(result.result.overall_assessment)}</p>`;
+                            html += `<h4>📋 Assessment</h4>`;
+                            html += `<div style="white-space: pre-wrap; line-height: 1.8;">${formatMarkdown(result.result.overall_assessment)}</div>`;
+                        }
+                        if (result.result.problematic_entries && result.result.problematic_entries.length > 0) {
+                            html += `<h4 style="margin-top: 1.5rem;">⚠️ Entries Needing Improvement (${result.result.problem_count || result.result.problematic_entries.length})</h4>`;
+                            html += `<div style="display: flex; flex-direction: column; gap: 0.75rem;">`;
+                            result.result.problematic_entries.forEach((entry, idx) => {
+                                html += `<div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--border-radius-sm); border-left: 3px solid var(--warning-color);">`;
+                                html += `<strong>${escapeHtml(entry.title)}</strong> <span style="color: var(--error-color);">(${entry.score}%)</span>`;
+                                if (entry.main_issues && entry.main_issues.length > 0) {
+                                    html += `<ul style="margin-top: 0.5rem; margin-bottom: 0;">`;
+                                    entry.main_issues.forEach(issue => {
+                                        html += `<li style="font-size: 0.9rem;">${escapeHtml(issue)}</li>`;
+                                    });
+                                    html += `</ul>`;
+                                }
+                                html += `</div>`;
+                            });
+                            html += `</div>`;
                         }
                     }
                     break;
 
                 case 'portfolio':
-                    html = `<div class="notification success">✓ Portfolio Generated</div>`;
+                    html = `<div class="notification success" style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success-color); border-radius: var(--border-radius); color: var(--success-color); margin-bottom: 1.5rem;">✓ Portfolio Generated Successfully</div>`;
+                    if (result.quality_score) {
+                        html += `<div style="text-align: center; padding: 1rem; background: var(--bg-tertiary); border-radius: var(--border-radius); margin-bottom: 1.5rem;">`;
+                        html += `<div style="font-size: 2rem; font-weight: 700; color: var(--success-color);">${result.quality_score}%</div>`;
+                        html += `<div style="font-size: 0.9rem; color: var(--text-secondary);">Quality Score</div>`;
+                        html += `</div>`;
+                    }
                     if (result.portfolio) {
-                        html += `<div style="white-space: pre-wrap;">${formatMarkdown(result.portfolio)}</div>`;
-                        html += `<div style="margin-top: 1rem; display: flex; gap: 1rem;">`;
-                        html += `<button class="btn btn-primary" onclick="downloadPortfolio()">📥 Download</button>`;
-                        html += `<button class="btn btn-outline" onclick="printPortfolio()">🖨️ Print</button>`;
+                        html += `<h4>📄 Report Preview</h4>`;
+                        html += `<div style="white-space: pre-wrap; line-height: 1.8; background: var(--bg-tertiary); padding: 1rem; border-radius: var(--border-radius-sm); max-height: 400px; overflow-y: auto;">${formatMarkdown(result.portfolio)}</div>`;
+                        html += `<div style="margin-top: 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">`;
+                        html += `<button class="btn btn-primary" onclick="downloadPortfolio()" style="flex: 1; min-width: 150px;">📥 Download Report</button>`;
+                        html += `<button class="btn btn-outline" onclick="printPortfolio()" style="flex: 1; min-width: 150px;">🖨️ Print Report</button>`;
                         html += `</div>`;
                         window.currentPortfolio = result.portfolio;
+                    }
+                    if (result.steps_completed) {
+                        html += `<p style="margin-top: 1rem; color: var(--text-secondary); font-size: 0.9rem;">⚙️ Steps completed: ${result.steps_completed}</p>`;
                     }
                     break;
             }
@@ -685,7 +773,6 @@ if (session_status() === PHP_SESSION_NONE) {
             actualResult.innerHTML = html;
         }
 
-        // Close result panel
         function closeResultPanel() {
             document.getElementById('resultPanel').classList.remove('active');
             if (currentAgentRequest) {
@@ -694,45 +781,36 @@ if (session_status() === PHP_SESSION_NONE) {
             }
         }
 
-        // Show agent info
         function showAgentInfo(agentType) {
             const info = {
-                narrative: 'The Narrative Agent analyzes your journal entries to identify themes, extract skills, and generate coherent weekly narrative reports. It includes automatic quality checking and revision.',
-                analysis: 'The Analysis Agent performs deep analysis including skills extraction (technical & soft), progress tracking over time, pattern recognition, and generates executive summaries.',
-                quality: 'The Quality Agent reviews your entries for completeness, grammar, style, and provides scoring (A-F) with specific improvement suggestions.',
-                portfolio: 'The Portfolio Agent is an orchestrator that generates complete 3-chapter OJT reports including Company Profile, Activities, and Conclusion & Recommendations.'
+                narrative: 'The Narrative Agent analyzes your journal entries to identify themes, extract skills, and generate coherent weekly narrative reports.',
+                analysis: 'The Analysis Agent performs deep analysis including skills extraction, progress tracking, pattern recognition, and executive summaries.',
+                quality: 'The Quality Agent reviews your entries for completeness, grammar, style, and provides scoring (A-F) with improvement suggestions.',
+                portfolio: 'The Portfolio Agent generates complete 3-chapter OJT reports including Company Profile, Activities, and Conclusion & Recommendations.'
             };
-
             alert(info[agentType] || 'AI Agent for OJT report generation');
         }
 
-        // Show notification
         function showNotification(message, type) {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.textContent = message;
             document.body.appendChild(notification);
-
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
+            setTimeout(() => notification.remove(), 3000);
         }
 
-        // Increment tasks completed
         function incrementTasksCompleted() {
             const current = parseInt(localStorage.getItem('agentTasksCompleted') || '0');
             localStorage.setItem('agentTasksCompleted', (current + 1).toString());
             document.getElementById('tasksCompleted').textContent = current + 1;
         }
 
-        // Download portfolio
         function downloadPortfolio() {
             const content = window.currentPortfolio;
             if (!content) {
                 showNotification('No portfolio to download', 'error');
                 return;
             }
-
             const blob = new Blob([content], { type: 'text/markdown' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -745,43 +823,67 @@ if (session_status() === PHP_SESSION_NONE) {
             showNotification('Portfolio downloaded!', 'success');
         }
 
-        // Print portfolio
         function printPortfolio() {
             const content = window.currentPortfolio;
             if (!content) {
                 showNotification('No portfolio to print', 'error');
                 return;
             }
-
             const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>OJT Report</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
-                        h1, h2, h3 { color: #333; margin-top: 1.5rem; }
-                        @media print { body { padding: 0; } }
-                    </style>
-                </head>
-                <body>
-                    <div style="white-space: pre-wrap;">${escapeHtml(content)}</div>
-                </body>
-                </html>
-            `);
+            printWindow.document.write(`<!DOCTYPE html><html><head><title>OJT Report</title><style>body{font-family:Arial,sans-serif;padding:40px;line-height:1.6;}@media print{body{padding:0;}}</style></head><body><div style="white-space:pre-wrap;">${escapeHtml(content)}</div></body></html>`);
             printWindow.document.close();
             printWindow.print();
             showNotification('Print dialog opened', 'success');
         }
 
-        // Escape HTML
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
+
+        function formatMarkdown(text) {
+            if (!text) return '';
+            let html = escapeHtml(text);
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\n/g, '<br>');
+            return html;
+        }
+
+        async function getCSRFToken() {
+            try {
+                const response = await fetch('../src/process.php?action=getCSRFToken');
+                const data = await response.json();
+                return data.csrf_token || '';
+            } catch (error) {
+                console.error('CSRF error:', error);
+                return '';
+            }
+        }
     </script>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 2rem 0; color: var(--text-secondary); font-size: 0.9rem; border-top: 1px solid var(--border-color); margin-top: 2rem;">
+        <p style="margin-bottom: 0.5rem;">
+            <strong>✨ AI-Powered OJT Journal Report Generator</strong>
+        </p>
+        <p style="margin: 0;">
+            Developed by
+            <a href="https://github.com/Melvin1032" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                John Melvin R. Macabeo
+            </a>
+            <span style="margin: 0 0.5rem;">|</span>
+            <a href="https://github.com/Melvin1032/OJT-AI-Journal-Report-Generator" target="_blank" rel="noopener noreferrer" style="color: var(--primary-color); text-decoration: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; vertical-align: middle; margin-right: 0.25rem;">
+                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                </svg>
+                View on GitHub
+            </a>
+        </p>
+    </footer>
 </body>
 </html>

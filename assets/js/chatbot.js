@@ -172,28 +172,31 @@ const ChatbotWidget = {
     async sendMessage() {
         const input = document.getElementById('chatbotInput');
         const message = input.value.trim();
-        
+
         if (!message || this.isTyping) return;
-        
+
         // Add user message
         this.addMessage(message, 'user');
-        
+
         // Clear input
         input.value = '';
-        
+
         // Show typing indicator
         this.showTyping();
-        
+
         try {
             // Get CSRF token
             const csrfToken = await this.getCSRFToken();
-            
+
             // Send to server
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
             formData.append('message', message);
+
+            // Determine correct path based on current location
+            const basePath = window.location.pathname.includes('/dashboards/') ? '../src/' : 'src/';
             
-            const response = await fetch('src/process.php?action=chatbot/send', {
+            const response = await fetch(basePath + 'process.php?action=chatbot/send', {
                 method: 'POST',
                 body: formData
             });
@@ -257,13 +260,15 @@ const ChatbotWidget = {
     // Clear conversation
     async clear() {
         if (!confirm('Clear conversation history?')) return;
-        
+
         try {
             const csrfToken = await this.getCSRFToken();
             const formData = new FormData();
             formData.append('csrf_token', csrfToken);
+
+            const basePath = window.location.pathname.includes('/dashboards/') ? '../src/' : 'src/';
             
-            await fetch('src/process.php?action=chatbot/clear', {
+            await fetch(basePath + 'process.php?action=chatbot/clear', {
                 method: 'POST',
                 body: formData
             });
@@ -288,21 +293,23 @@ const ChatbotWidget = {
     // Load conversation history
     async loadHistory() {
         try {
-            const response = await fetch('src/process.php?action=chatbot/history');
-            const result = await response.json();
+            const basePath = window.location.pathname.includes('/dashboards/') ? '../src/' : 'src/';
             
+            const response = await fetch(basePath + 'process.php?action=chatbot/history');
+            const result = await response.json();
+
             if (result.success && result.history && result.history.length > 0) {
                 this.conversationId = result.conversation_id;
-                
+
                 // Clear welcome message
                 const messagesContainer = document.getElementById('chatbotMessages');
                 messagesContainer.innerHTML = '';
-                
+
                 // Add history
                 result.history.forEach(msg => {
                     this.addMessage(msg.content, msg.role);
                 });
-                
+
                 this.scrollToBottom();
             }
         } catch (error) {
@@ -319,7 +326,9 @@ const ChatbotWidget = {
     // Get CSRF token
     async getCSRFToken() {
         try {
-            const response = await fetch('src/process.php?action=getCSRFToken');
+            const basePath = window.location.pathname.includes('/dashboards/') ? '../src/' : 'src/';
+            
+            const response = await fetch(basePath + 'process.php?action=getCSRFToken');
             const data = await response.json();
             return data.csrf_token || '';
         } catch (error) {
