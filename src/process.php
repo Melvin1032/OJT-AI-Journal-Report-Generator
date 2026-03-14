@@ -100,6 +100,24 @@ try {
         case 'generateChapterAI':
             generateChapterAI();
             break;
+        
+        // AI Agent Endpoints
+        case 'agent/narrative':
+            runNarrativeAgent();
+            break;
+        case 'agent/analysis':
+            runAnalysisAgent();
+            break;
+        case 'agent/quality':
+            runQualityAgent();
+            break;
+        case 'agent/portfolio':
+            runPortfolioAgent();
+            break;
+        case 'agent/improve-entry':
+            improveEntryWithAgent();
+            break;
+            
         default:
             if (empty($action)) {
                 jsonResponse(['error' => 'No action specified', 'hint' => 'Use ?action=createEntry, ?action=getWeekly, etc.'], 400);
@@ -1216,6 +1234,136 @@ function generateChapterAI() {
         'chapter' => $chapter
     ]);
 }
+
+// ==================== AI AGENT HANDLERS ====================
+
+/**
+ * Run Narrative Agent
+ */
+function runNarrativeAgent() {
+    require_once __DIR__ . '/../src/agents/NarrativeAgent.php';
+    
+    $type = $_POST['type'] ?? 'weekly';
+    $dateRange = $_POST['date_range'] ?? null;
+    
+    $agent = new NarrativeAgent();
+    
+    $goal = "Generate a {$type} narrative report from OJT entries";
+    $context = [];
+    
+    if ($dateRange) {
+        $context['date_range'] = $dateRange;
+    }
+    
+    $result = $agent->execute($goal, $context);
+    
+    jsonResponse($result);
+}
+
+/**
+ * Run Analysis Agent
+ */
+function runAnalysisAgent() {
+    require_once __DIR__ . '/../src/agents/AnalysisAgent.php';
+    
+    $type = $_POST['type'] ?? 'comprehensive';
+    $entryId = $_POST['entry_id'] ?? null;
+    
+    $agent = new AnalysisAgent();
+    
+    $context = [];
+    
+    if ($entryId) {
+        $pdo = getDbConnection();
+        $stmt = $pdo->prepare("SELECT * FROM ojt_entries WHERE id = :id");
+        $stmt->bindValue(':id', $entryId, PDO::PARAM_INT);
+        $stmt->execute();
+        $entry = $stmt->fetch();
+        if ($entry) {
+            $context['entries'] = [$entry];
+        }
+    }
+    
+    $goal = "Perform {$type} analysis on OJT entries";
+    $result = $agent->execute($goal, $context);
+    
+    jsonResponse($result);
+}
+
+/**
+ * Run Quality Agent
+ */
+function runQualityAgent() {
+    require_once __DIR__ . '/../src/agents/QualityAgent.php';
+    
+    $type = $_POST['type'] ?? 'all_entries';
+    $entryId = $_POST['entry_id'] ?? null;
+    
+    $agent = new QualityAgent();
+    
+    $context = [];
+    
+    if ($entryId) {
+        $pdo = getDbConnection();
+        $stmt = $pdo->prepare("SELECT * FROM ojt_entries WHERE id = :id");
+        $stmt->bindValue(':id', $entryId, PDO::PARAM_INT);
+        $stmt->execute();
+        $entry = $stmt->fetch();
+        if ($entry) {
+            $context['entry'] = $entry;
+            $type = 'single_entry';
+        }
+    }
+    
+    $goal = "Perform {$type} quality check";
+    $result = $agent->execute($goal, $context);
+    
+    jsonResponse($result);
+}
+
+/**
+ * Run Portfolio Agent - Generate complete OJT report
+ */
+function runPortfolioAgent() {
+    require_once __DIR__ . '/../src/agents/PortfolioAgent.php';
+    
+    $agent = new PortfolioAgent();
+    
+    $goal = "Generate complete OJT internship report with all chapters";
+    $result = $agent->execute($goal);
+    
+    jsonResponse($result);
+}
+
+/**
+ * Improve a single entry using AI Agent
+ */
+function improveEntryWithAgent() {
+    require_once __DIR__ . '/../src/agents/QualityAgent.php';
+    
+    $entryId = $_POST['entry_id'] ?? null;
+    
+    if (!$entryId) {
+        jsonResponse(['error' => 'Entry ID required'], 400);
+    }
+    
+    $pdo = getDbConnection();
+    $stmt = $pdo->prepare("SELECT * FROM ojt_entries WHERE id = :id");
+    $stmt->bindValue(':id', $entryId, PDO::PARAM_INT);
+    $stmt->execute();
+    $entry = $stmt->fetch();
+    
+    if (!$entry) {
+        jsonResponse(['error' => 'Entry not found'], 404);
+    }
+    
+    $agent = new QualityAgent();
+    $result = $agent->execute("Improve this entry", ['entry' => $entry]);
+    
+    jsonResponse($result);
+}
+
+// ==================== HELPER FUNCTIONS ====================
 
 /**
  * Send JSON response

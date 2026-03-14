@@ -45,6 +45,20 @@ define('FALLBACK_TEXT_MODEL', getenv('FALLBACK_TEXT_MODEL') ?: $_ENV['FALLBACK_T
 define('AI_MAX_RETRIES', (int)(getenv('AI_MAX_RETRIES') ?: $_ENV['AI_MAX_RETRIES'] ?? 1));
 define('AI_TIMEOUT', (int)(getenv('AI_TIMEOUT') ?: $_ENV['AI_TIMEOUT'] ?? 30));
 
+// Google Gemini API Configuration (Free Tier)
+define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: $_ENV['GEMINI_API_KEY'] ?? '');
+define('GEMINI_API_ENDPOINT', getenv('GEMINI_API_ENDPOINT') ?: $_ENV['GEMINI_API_ENDPOINT'] ?? 'https://generativelanguage.googleapis.com/v1beta/models');
+define('GEMINI_MODEL', getenv('GEMINI_MODEL') ?: $_ENV['GEMINI_MODEL'] ?? 'gemini-2.0-flash-exp');
+
+// Groq API Configuration (Free Tier - Fast)
+define('GROQ_API_KEY', getenv('GROQ_API_KEY') ?: $_ENV['GROQ_API_KEY'] ?? '');
+define('GROQ_API_ENDPOINT', getenv('GROQ_API_ENDPOINT') ?: $_ENV['GROQ_API_ENDPOINT'] ?? 'https://api.groq.com/openai/v1/chat/completions');
+define('GROQ_MODEL', getenv('GROQ_MODEL') ?: $_ENV['GROQ_MODEL'] ?? 'llama-3.3-70b-versatile');
+
+// Agent Configuration
+define('AGENT_MAX_STEPS', (int)(getenv('AGENT_MAX_STEPS') ?: $_ENV['AGENT_MAX_STEPS'] ?? 10));
+define('AGENT_TEMPERATURE', (float)(getenv('AGENT_TEMPERATURE') ?: $_ENV['AGENT_TEMPERATURE'] ?? 0.7));
+
 // Database Configuration
 $dbPath = getenv('DB_PATH') ?: $_ENV['DB_PATH'] ?? null;
 if ($dbPath) {

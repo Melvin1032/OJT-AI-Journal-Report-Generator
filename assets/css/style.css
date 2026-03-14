@@ -1805,4 +1805,209 @@ body {
     background: var(--primary-hover);
 }
 
+/* ==================== AI AGENTS STYLES ==================== */
+
+.ai-agents-container {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+}
+
+.agents-header {
+    margin-bottom: 1.5rem;
+}
+
+.agents-header h3 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+    font-size: 1.5rem;
+}
+
+.agents-subtitle {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.agent-card {
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    border: 2px solid transparent;
+    transition: var(--transition);
+    position: relative;
+}
+
+.agent-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.agent-card[data-featured="true"] {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, var(--bg-tertiary), rgba(79, 70, 229, 0.1));
+}
+
+.featured-badge {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: var(--primary-color);
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.agent-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.agent-card h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.agent-card p {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 0 0 1rem 0;
+    line-height: 1.5;
+}
+
+.agent-result-container {
+    display: none;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    margin-top: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+.agent-result-container.active {
+    display: block;
+}
+
+.agent-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.agent-result-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+}
+
+.agent-result-content {
+    min-height: 100px;
+}
+
+.agent-loading {
+    text-align: center;
+    padding: 2rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.agent-status {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.agent-output {
+    color: var(--text-primary);
+    line-height: 1.7;
+}
+
+.agent-output h1,
+.agent-output h2,
+.agent-output h3 {
+    color: var(--text-primary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.agent-output p {
+    margin-bottom: 1rem;
+}
+
+.agent-output ul,
+.agent-output ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.agent-output li {
+    margin-bottom: 0.5rem;
+}
+
+.agent-output pre {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: var(--border-radius-sm);
+    overflow-x: auto;
+    font-size: 0.85rem;
+}
+
+.agent-output code {
+    background: var(--bg-secondary);
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.agent-output blockquote {
+    border-left: 3px solid var(--primary-color);
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: var(--text-secondary);
+}
+
+.agent-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--error-color);
+    border-radius: var(--border-radius-sm);
+    padding: 1rem;
+    color: var(--error-color);
+}
+
+.agent-success {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid var(--success-color);
+    border-radius: var(--border-radius-sm);
+    padding: 1rem;
+    color: var(--success-color);
+}
+
 /* Bulk Action Bar & Mobile Improvements */ 
