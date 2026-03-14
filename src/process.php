@@ -815,15 +815,29 @@ function generateNarrativeReport() {
 
     $pdo = getDbConnection();
     $currentSession = session_id();
+    
+    // Check if session_id column exists (migration check)
+    $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
+    $hasSessionIsolation = in_array('session_id', $tableInfo);
 
-    // Get entries for current session only (user isolation)
-    $stmt = $pdo->prepare("
-        SELECT id, title, user_description, entry_date, ai_enhanced_description
-        FROM ojt_entries
-        WHERE session_id = :session_id OR session_id IS NULL
-        ORDER BY entry_date ASC
-    ");
-    $stmt->execute([':session_id' => $currentSession]);
+    if ($hasSessionIsolation) {
+        // Get entries for current session only (user isolation)
+        $stmt = $pdo->prepare("
+            SELECT id, title, user_description, entry_date, ai_enhanced_description
+            FROM ojt_entries
+            WHERE session_id = :session_id OR session_id IS NULL
+            ORDER BY entry_date ASC
+        ");
+        $stmt->execute([':session_id' => $currentSession]);
+    } else {
+        // Fallback: Get all entries (no isolation - migration not run yet)
+        $stmt = $pdo->prepare("
+            SELECT id, title, user_description, entry_date, ai_enhanced_description
+            FROM ojt_entries
+            ORDER BY entry_date ASC
+        ");
+        $stmt->execute();
+    }
 
     $entries = $stmt->fetchAll();
 
