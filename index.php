@@ -2,6 +2,9 @@
 session_start();
 require_once 'config/config.php';
 
+// Require authentication
+requireAuth();
+
 // Redirect to setup if API keys are not configured
 if (!isset($_SESSION['api_keys_configured']) || $_SESSION['api_keys_configured'] !== true) {
     // Check if keys exist in database
@@ -15,6 +18,7 @@ if (!isset($_SESSION['api_keys_configured']) || $_SESSION['api_keys_configured']
 }
 
 $csrfToken = generateCSRFToken();
+$currentUser = getCurrentUser();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -43,6 +47,41 @@ $csrfToken = generateCSRFToken();
                     <p class="subtitle">Document your On-the-Job Training journey</p>
                 </div>
                 <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <!-- User Info Dropdown -->
+                    <div style="position: relative;">
+                        <button class="btn btn-outline" id="userMenuBtn" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.875rem;"
+                                aria-label="User menu" aria-haspopup="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <span><?php echo htmlspecialchars($currentUser['username'] ?? 'User'); ?></span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="opacity: 0.6;">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </button>
+                        <div id="userMenu" style="position: absolute; right: 0; top: 100%; margin-top: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--border-radius); box-shadow: var(--shadow-lg); min-width: 200px; display: none; z-index: 1000;">
+                            <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
+                                <p style="margin: 0; font-weight: 600; color: var(--text-primary);"><?php echo htmlspecialchars($currentUser['username'] ?? 'User'); ?></p>
+                                <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-secondary);"><?php echo htmlspecialchars($currentUser['email'] ?? ''); ?></p>
+                            </div>
+                            <a href="settings.php" style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; color: var(--text-primary); text-decoration: none; transition: var(--transition);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                    <circle cx="12" cy="12" r="3"/>
+                                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                                </svg>
+                                Settings
+                            </a>
+                            <button onclick="logout()" style="width: 100%; display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: none; border: none; color: var(--error-color); cursor: pointer; transition: var(--transition); text-align: left;">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                    <polyline points="16 17 21 12 16 7"/>
+                                    <line x1="21" y1="12" x2="9" y2="12"/>
+                                </svg>
+                                Logout
+                            </button>
+                        </div>
+                    </div>
                     <a href="dashboards/agents-dashboard.php" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M12 2L2 7l10 5 10-5-10-5z"/>
@@ -457,5 +496,55 @@ $csrfToken = generateCSRFToken();
     <script src="assets/js/script.js"></script>
     <script src="assets/js/print-report.js"></script>
     <script src="assets/js/chatbot.js"></script>
+    <script>
+        // User menu toggle
+        const userMenuBtn = document.getElementById('userMenuBtn');
+        const userMenu = document.getElementById('userMenu');
+
+        if (userMenuBtn && userMenu) {
+            userMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userMenu.style.display = userMenu.style.display === 'none' ? 'block' : 'none';
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', () => {
+                userMenu.style.display = 'none';
+            });
+
+            // Close menu when clicking inside
+            userMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }
+
+        // Logout function
+        async function logout() {
+            if (!confirm('Are you sure you want to logout?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('public/logout.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = 'login.php';
+                } else {
+                    alert('Logout failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Logout failed. Please try again.');
+            }
+        }
+    </script>
 </body>
 </html>

@@ -219,17 +219,29 @@ function createOJTEntry() {
 
     $pdo = getDbConnection();
     $currentSession = session_id();
-    
-    // Check if session_id column exists (migration check)
-    $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
-    $hasSessionIsolation = in_array('session_id', $tableInfo);
+    $currentUserId = getCurrentUserId(); // Get user_id if logged in
+
+    // CRITICAL: Ensure user is logged in
+    if (!$currentUserId) {
+        Logger::error('User not logged in - cannot create entry');
+        jsonResponse(['error' => 'User not authenticated. Please login.'], 401);
+    }
+
+    // Initial enhanced description (empty until AI processes)
+    $initialEnhanced = '';
+
+    // Check if user_id column exists (new authentication)
+    $stmt = $pdo->query("PRAGMA table_info(ojt_entries)");
+    $columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $columnNames = array_column($columns, 'name');
+    $hasUserIsolation = in_array('user_id', $columnNames);
 
     try {
-        // Create the OJT entry with session_id (user isolation) if column exists
-        if ($hasSessionIsolation) {
+        // ALWAYS use user_id for authenticated users
+        if ($hasUserIsolation && $currentUserId) {
             $stmt = $pdo->prepare("
-                INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at, session_id)
-                VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at, :session_id)
+                INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at, user_id)
+                VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at, :user_id)
             ");
 
             $stmt->execute([
@@ -238,30 +250,27 @@ function createOJTEntry() {
                 ':entry_date' => $entryDate,
                 ':ai_desc' => $initialEnhanced,
                 ':created_at' => date('Y-m-d H:i:s'),
-                ':session_id' => $currentSession
+                ':user_id' => $currentUserId
+            ]);
+
+            $entryId = $pdo->lastInsertId();
+            
+            Logger::info('Entry created with user_id', [
+                'entry_id' => $entryId,
+                'title' => $title,
+                'user_id' => $currentUserId
             ]);
         } else {
-            // Fallback: Insert without session_id (migration not run yet)
-            $stmt = $pdo->prepare("
-                INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at)
-                VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at)
-            ");
-
-            $stmt->execute([
-                ':title' => $title,
-                ':user_desc' => $userDescription,
-                ':entry_date' => $entryDate,
-                ':ai_desc' => $initialEnhanced,
-                ':created_at' => date('Y-m-d H:i:s')
-            ]);
+            // Fallback: This should never happen in production
+            Logger::error('user_id column missing from ojt_entries table!');
+            jsonResponse(['error' => 'Database configuration error. Please run database setup.'], 500);
         }
-
-        $entryId = $pdo->lastInsertId();
-        Logger::info('Entry created', ['entry_id' => $entryId, 'title' => $title, 'session' => $currentSession]);
 
         // Process images with validation
         $imageResults = [];
         $validImageCount = 0;
+
+        Logger::info('Processing images', ['uploadCount' => $uploadCount, 'entryId' => $entryId]);
 
         for ($i = 0; $i < $uploadCount; $i++) {
             $file = [
@@ -271,6 +280,8 @@ function createOJTEntry() {
                 'error' => $_FILES['images']['error'][$i],
                 'size' => $_FILES['images']['size'][$i]
             ];
+
+            Logger::info('Processing file', ['file' => $file['name'], 'error' => $file['error']]);
 
             // Validate image using security helper
             $validation = validateImageUpload($file);
@@ -304,11 +315,11 @@ function createOJTEntry() {
                 $aiDescription = 'Image uploaded but analysis unavailable';
             }
 
-            // Save to database
-            if ($hasSessionIsolation) {
+            // Save to database with user_id
+            if ($hasUserIsolation) {
                 $stmt = $pdo->prepare("
-                    INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at, session_id)
-                    VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at, :session_id)
+                    INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at, user_id)
+                    VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at, :user_id)
                 ");
 
                 $stmt->execute([
@@ -317,22 +328,17 @@ function createOJTEntry() {
                     ':order' => $i,
                     ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
                     ':created_at' => date('Y-m-d H:i:s'),
-                    ':session_id' => $currentSession
+                    ':user_id' => $currentUserId
+                ]);
+                
+                Logger::info('Image saved with user_id', [
+                    'entry_id' => $entryId,
+                    'image' => $imagePath,
+                    'user_id' => $currentUserId
                 ]);
             } else {
-                // Fallback: Insert without session_id
-                $stmt = $pdo->prepare("
-                    INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
-                    VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
-                ");
-
-                $stmt->execute([
-                    ':entry_id' => $entryId,
-                    ':image_path' => $imagePath,
-                    ':order' => $i,
-                    ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
-                    ':created_at' => date('Y-m-d H:i:s')
-                ]);
+                Logger::error('user_id column missing from entry_images table!');
+                jsonResponse(['error' => 'Database configuration error'], 500);
             }
 
             $imageResults[] = [
@@ -627,13 +633,24 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
 function getWeeklyReport() {
     $pdo = getDbConnection();
     $currentSession = session_id();
+    $currentUserId = getCurrentUserId(); // Get user_id if logged in
 
-    // Check if session_id column exists (migration check)
+    // Check if user_id column exists (preferred authentication)
     $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
+    $hasUserIsolation = in_array('user_id', $tableInfo);
     $hasSessionIsolation = in_array('session_id', $tableInfo);
 
-    if ($hasSessionIsolation) {
-        // Get entries for current session only (user isolation)
+    if ($hasUserIsolation && $currentUserId) {
+        // Get entries for current user only (user isolation)
+        $stmt = $pdo->prepare("
+            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
+            FROM ojt_entries e
+            WHERE e.user_id = :user_id
+            ORDER BY e.entry_date DESC, e.created_at DESC
+        ");
+        $stmt->execute([':user_id' => $currentUserId]);
+    } elseif ($hasSessionIsolation) {
+        // Fallback to session_id for guests or if user_id not available
         $stmt = $pdo->prepare("
             SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
             FROM ojt_entries e
@@ -655,7 +672,18 @@ function getWeeklyReport() {
 
     // Get images for each entry
     foreach ($entries as &$entry) {
-        if ($hasSessionIsolation) {
+        if ($hasUserIsolation && $currentUserId) {
+            $stmt = $pdo->prepare("
+                SELECT id, image_path, image_order, ai_description
+                FROM entry_images
+                WHERE entry_id = :entry_id AND user_id = :user_id
+                ORDER BY image_order ASC
+            ");
+            $stmt->execute([
+                ':entry_id' => $entry['id'],
+                ':user_id' => $currentUserId
+            ]);
+        } elseif ($hasSessionIsolation) {
             $stmt = $pdo->prepare("
                 SELECT id, image_path, image_order, ai_description
                 FROM entry_images
@@ -704,31 +732,29 @@ function getWeeklyReport() {
 function deleteEntry() {
     $data = json_decode(file_get_contents('php://input'), true);
     $id = $data['id'] ?? null;
-    $currentSession = session_id();
+    $currentUserId = getCurrentUserId();
 
     if (!$id) {
         jsonResponse(['error' => 'Invalid entry ID'], 400);
     }
 
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
+    }
+
     $pdo = getDbConnection();
 
-    // Verify ownership - only delete if entry belongs to current session
-    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
-    $stmt->execute([
-        ':id' => $id,
-        ':session_id' => $currentSession
-    ]);
-    
+    // Verify ownership - only delete if entry belongs to current user
+    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = ? AND user_id = ?");
+    $stmt->execute([$id, $currentUserId]);
+
     if (!$stmt->fetch()) {
         jsonResponse(['error' => 'Entry not found or you do not have permission to delete it'], 404);
     }
 
     // Get all image paths for this entry
-    $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = :id AND (session_id = :session_id OR session_id IS NULL)");
-    $stmt->execute([
-        ':id' => $id,
-        ':session_id' => $currentSession
-    ]);
+    $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = ? AND user_id = ?");
+    $stmt->execute([$id, $currentUserId]);
     $images = $stmt->fetchAll();
 
     // Delete image files
@@ -740,18 +766,12 @@ function deleteEntry() {
     }
 
     // Delete images from database
-    $stmt = $pdo->prepare("DELETE FROM entry_images WHERE entry_id = :id AND session_id = :session_id");
-    $stmt->execute([
-        ':id' => $id,
-        ':session_id' => $currentSession
-    ]);
+    $stmt = $pdo->prepare("DELETE FROM entry_images WHERE entry_id = ? AND user_id = ?");
+    $stmt->execute([$id, $currentUserId]);
 
-    // Delete the entry (with session check)
-    $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
-    $stmt->execute([
-        ':id' => $id,
-        ':session_id' => $currentSession
-    ]);
+    // Delete the entry
+    $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = ? AND user_id = ?");
+    $stmt->execute([$id, $currentUserId]);
 
     jsonResponse(['success' => true]);
 }
@@ -899,15 +919,21 @@ function generateISPSCReport() {
     }
 
     $pdo = getDbConnection();
+    $currentUserId = getCurrentUserId();
 
-    // Get all entries
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
+    }
+
+    // Get all entries for current user
     $stmt = $pdo->prepare("
         SELECT id, title, user_description, entry_date, ai_enhanced_description
         FROM ojt_entries
+        WHERE user_id = ?
         ORDER BY entry_date ASC
     ");
 
-    $stmt->execute();
+    $stmt->execute([$currentUserId]);
     $entries = $stmt->fetchAll();
 
     if (empty($entries)) {
@@ -916,14 +942,14 @@ function generateISPSCReport() {
 
     // Get images for each entry
     foreach ($entries as &$entry) {
-        $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = :id ORDER BY image_order ASC");
-        $stmt->execute([':id' => $entry['id']]);
+        $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = ? AND user_id = ? ORDER BY image_order ASC");
+        $stmt->execute([$entry['id'], $currentUserId]);
         $entry['images'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    // Get student info
-    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
-    $stmt->execute();
+    // Get student info for current user
+    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE user_id = ?");
+    $stmt->execute([$currentUserId]);
     $studentInfo = $stmt->fetch() ?: [];
 
     // Build comprehensive context from ALL entries
@@ -1037,64 +1063,78 @@ function generateISPSCReport() {
  * Generate simple download report (non-AI, just entries from database)
  */
 function generateDownloadReport() {
-    $pdo = getDbConnection();
+    try {
+        $pdo = getDbConnection();
+        $currentUserId = getCurrentUserId();
 
-    // Get all entries
-    $stmt = $pdo->prepare("
-        SELECT id, title, user_description, entry_date, ai_enhanced_description
-        FROM ojt_entries
-        ORDER BY entry_date ASC
-    ");
+        if (!$currentUserId) {
+            jsonResponse(['error' => 'User not authenticated'], 401);
+        }
 
-    $stmt->execute();
-    $entries = $stmt->fetchAll();
+        // Get all entries for current user
+        $stmt = $pdo->prepare("
+            SELECT id, title, user_description, entry_date, ai_enhanced_description
+            FROM ojt_entries
+            WHERE user_id = ?
+            ORDER BY entry_date ASC
+        ");
 
-    if (empty($entries)) {
-        jsonResponse(['error' => 'No entries found. Add some OJT entries first.'], 404);
+        $stmt->execute([$currentUserId]);
+        $entries = $stmt->fetchAll();
+
+        if (empty($entries)) {
+            jsonResponse(['error' => 'No entries found. Add some OJT entries first.'], 404);
+        }
+
+        // Get images for each entry
+        foreach ($entries as &$entry) {
+            $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = ? AND user_id = ? ORDER BY image_order ASC");
+            $stmt->execute([$entry['id'], $currentUserId]);
+            $entry['images'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
+        // Get student info for current user
+        $stmt = $pdo->prepare("SELECT * FROM student_info WHERE user_id = ?");
+        $stmt->execute([$currentUserId]);
+        $studentInfo = $stmt->fetch() ?: [];
+
+        // Get date range
+        $startDate = date('F j, Y', strtotime($entries[0]['entry_date']));
+        $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
+        $totalDays = count($entries);
+
+        // Get student info from database
+        $studentName = $studentInfo['student_name'] ?? 'JUAN DELA CRUZ';
+        $companyName = $studentInfo['company_name'] ?? '';
+        $companyAddress = $studentInfo['company_address'] ?? '';
+        $studentRole = $studentInfo['student_role'] ?? '';
+        $introduction = $studentInfo['introduction'] ?? '';
+        $purposeRole = $studentInfo['purpose_role'] ?? '';
+        $conclusion = $studentInfo['conclusion'] ?? '';
+        $recommendations = $studentInfo['recommendations'] ?? '';
+
+        jsonResponse([
+            'success' => true,
+            'report' => [
+                'entries' => $entries,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_days' => $totalDays,
+                'student_name' => $studentName,
+                'company_name' => $companyName,
+                'company_address' => $companyAddress,
+                'student_role' => $studentRole,
+                'introduction' => $introduction,
+                'purpose_role' => $purposeRole,
+                'conclusion' => $conclusion,
+                'recommendations' => $recommendations
+            ]
+        ]);
+    } catch (Exception $e) {
+        error_log('generateDownloadReport error: ' . $e->getMessage());
+        error_log('Stack trace: ' . $e->getTraceAsString());
+        jsonResponse(['error' => 'Server error: ' . $e->getMessage()], 500);
     }
-
-    // Get images for each entry
-    foreach ($entries as &$entry) {
-        $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = :id ORDER BY image_order ASC");
-        $stmt->execute([':id' => $entry['id']]);
-        $entry['images'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    }
-
-    // Get student info
-    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
-    $stmt->execute();
-    $studentInfo = $stmt->fetch() ?: [];
-
-    // Get date range
-    $startDate = date('F j, Y', strtotime($entries[0]['entry_date']));
-    $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
-    $totalDays = count($entries);
-
-    // Get student name from database or use default
-    $studentName = $studentInfo['student_name'] ?? 'JUAN DELA CRUZ';
-    $companyName = $studentInfo['company_name'] ?? '';
-    $studentRole = $studentInfo['student_role'] ?? '';
-    $introduction = $studentInfo['introduction'] ?? '';
-    $purposeRole = $studentInfo['purpose_role'] ?? '';
-    $conclusion = $studentInfo['conclusion'] ?? '';
-    $recommendations = $studentInfo['recommendations'] ?? '';
-
-    jsonResponse([
-        'success' => true,
-        'report' => [
-            'entries' => $entries,
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-            'total_days' => $totalDays,
-            'student_name' => $studentName,
-            'company_name' => $companyName,
-            'student_role' => $studentRole,
-            'introduction' => $introduction,
-            'purpose_role' => $purposeRole,
-            'conclusion' => $conclusion,
-            'recommendations' => $recommendations
-        ]
-    ]);
 }
 
 /**
@@ -1156,11 +1196,16 @@ function getUploadErrorMessage($errorCode) {
 }
 
 /**
- * Save student information
+ * Save student information (user-specific)
  */
 function saveStudentInfo() {
     $data = json_decode(file_get_contents('php://input'), true);
-    
+    $currentUserId = getCurrentUserId();
+
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
+    }
+
     $studentName = sanitizeInput($data['student_name'] ?? '', 'text', 200);
     $companyName = sanitizeInput($data['company_name'] ?? '', 'text', 200);
     $companyAddress = sanitizeInput($data['company_address'] ?? '', 'text', 500);
@@ -1176,9 +1221,9 @@ function saveStudentInfo() {
 
     $pdo = getDbConnection();
 
-    // Check if record exists
-    $stmt = $pdo->prepare("SELECT id FROM student_info WHERE id = 1");
-    $stmt->execute();
+    // Check if record exists for this user
+    $stmt = $pdo->prepare("SELECT id FROM student_info WHERE user_id = ?");
+    $stmt->execute([$currentUserId]);
     $exists = $stmt->fetch();
 
     if ($exists) {
@@ -1193,12 +1238,12 @@ function saveStudentInfo() {
                 conclusion = :conclusion,
                 recommendations = :recommendations,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = 1
+            WHERE user_id = :user_id
         ");
     } else {
         $stmt = $pdo->prepare("
-            INSERT INTO student_info (id, student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations)
-            VALUES (1, :student_name, :company_name, :company_address, :student_role, :introduction, :purpose_role, :conclusion, :recommendations)
+            INSERT INTO student_info (student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations, user_id)
+            VALUES (:student_name, :company_name, :company_address, :student_role, :introduction, :purpose_role, :conclusion, :recommendations, :user_id)
         ");
     }
 
@@ -1210,20 +1255,39 @@ function saveStudentInfo() {
         ':introduction' => $introduction,
         ':purpose_role' => $purposeRole,
         ':conclusion' => $conclusion,
-        ':recommendations' => $recommendations
+        ':recommendations' => $recommendations,
+        ':user_id' => $currentUserId
     ]);
 
     jsonResponse(['success' => true]);
 }
 
 /**
- * Get student information
+ * Get student information (user-specific)
  */
 function getStudentInfo() {
     $pdo = getDbConnection();
+    $currentUserId = getCurrentUserId();
 
-    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE id = 1");
-    $stmt->execute();
+    if (!$currentUserId) {
+        jsonResponse([
+            'success' => true,
+            'info' => [
+                'student_name' => '',
+                'company_name' => '',
+                'company_address' => '',
+                'student_role' => '',
+                'introduction' => '',
+                'purpose_role' => '',
+                'conclusion' => '',
+                'recommendations' => ''
+            ]
+        ]);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM student_info WHERE user_id = ?");
+    $stmt->execute([$currentUserId]);
     $info = $stmt->fetch();
 
     if (!$info) {

@@ -9,6 +9,7 @@
 require_once __DIR__ . '/../src/security.php';
 require_once __DIR__ . '/../src/logger.php';
 require_once __DIR__ . '/../src/encryption.php';
+require_once __DIR__ . '/../src/auth.php';
 
 // Start output buffering for security
 ob_start();
@@ -293,13 +294,21 @@ function getUserApiKeys() {
         return $_SESSION['api_keys'];
     }
 
-    // Then check database
+    // Then check database - use user_id if logged in, otherwise session_id
     try {
         $pdo = getDbConnection();
-        $sessionId = session_id();
-
-        $stmt = $pdo->prepare("SELECT openrouter_key, gemini_key, groq_key FROM user_api_keys WHERE session_id = ?");
-        $stmt->execute([$sessionId]);
+        
+        // Prefer user_id over session_id for authenticated users
+        if (isset($_SESSION['user_id'])) {
+            $stmt = $pdo->prepare("SELECT openrouter_key, gemini_key, groq_key FROM user_api_keys WHERE user_id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+        } else {
+            // Fallback to session_id for backward compatibility
+            $sessionId = session_id();
+            $stmt = $pdo->prepare("SELECT openrouter_key, gemini_key, groq_key FROM user_api_keys WHERE session_id = ?");
+            $stmt->execute([$sessionId]);
+        }
+        
         $result = $stmt->fetch();
 
         if ($result) {
@@ -347,15 +356,21 @@ function getUserApiKey($service) {
 function deleteUserApiKeys() {
     try {
         $pdo = getDbConnection();
-        $sessionId = session_id();
         
-        $stmt = $pdo->prepare("DELETE FROM user_api_keys WHERE session_id = ?");
-        $stmt->execute([$sessionId]);
-        
+        // Delete by user_id if logged in, otherwise session_id
+        if (isset($_SESSION['user_id'])) {
+            $stmt = $pdo->prepare("DELETE FROM user_api_keys WHERE user_id = ?");
+            $stmt->execute([$_SESSION['user_id']]);
+        } else {
+            $sessionId = session_id();
+            $stmt = $pdo->prepare("DELETE FROM user_api_keys WHERE session_id = ?");
+            $stmt->execute([$sessionId]);
+        }
+
         // Clear session
         unset($_SESSION['api_keys']);
         unset($_SESSION['api_keys_configured']);
-        
+
         return true;
     } catch (PDOException $e) {
         error_log('Failed to delete API keys: ' . $e->getMessage());

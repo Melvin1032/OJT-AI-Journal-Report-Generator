@@ -377,7 +377,9 @@ async function loadWeeklyReport() {
     narrativeContainer.classList.remove('show');
 
     try {
-        const response = await fetch('src/process.php?action=getWeekly');
+        const response = await fetch('src/process.php?action=getWeekly', {
+            credentials: 'same-origin'
+        });
         const responseText = await response.text();
         console.log('Raw response:', responseText);
         

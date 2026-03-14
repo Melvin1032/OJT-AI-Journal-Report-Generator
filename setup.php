@@ -10,6 +10,13 @@ if (isset($_SESSION['api_keys_configured']) && $_SESSION['api_keys_configured'] 
 // Generate CSRF token
 require_once 'config/config.php';
 $csrfToken = generateCSRFToken();
+
+// Check if user already has API keys in database
+if (hasUserApiKeys()) {
+    $_SESSION['api_keys_configured'] = true;
+    header('Location: index.php');
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

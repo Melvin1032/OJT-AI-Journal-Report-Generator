@@ -175,16 +175,17 @@ function verifyGroqKey($apiKey) {
 
 /**
  * Store API keys in database for current user
- * Uses session-based user identification for multi-user support
+ * Uses user_id for authenticated users, session_id for guests
  */
 function storeApiKeys($keys) {
     try {
         $pdo = getDbConnection();
 
-        // Create user_api_keys table if not exists
+        // Create user_api_keys table if not exists (with both user_id and session_id support)
         $createTable = "CREATE TABLE IF NOT EXISTS user_api_keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id TEXT UNIQUE NOT NULL,
+            user_id INTEGER DEFAULT NULL,
+            session_id TEXT DEFAULT NULL,
             openrouter_key TEXT NOT NULL,
             gemini_key TEXT NOT NULL,
             groq_key TEXT NOT NULL,
@@ -194,9 +195,14 @@ function storeApiKeys($keys) {
 
         $pdo->exec($createTable);
 
-        // Insert or update keys for current session
+        // Create indexes for faster lookups
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)");
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_session_id ON user_api_keys(session_id)");
+
+        // Determine whether to use user_id or session_id
+        $userId = getCurrentUserId();
         $sessionId = session_id();
-        
+
         // Encrypt API keys before storing
         $encryptedKeys = [
             'openrouter' => encryptApiKey($keys['openrouter']),
@@ -204,33 +210,67 @@ function storeApiKeys($keys) {
             'groq' => encryptApiKey($keys['groq'])
         ];
 
-        $checkStmt = $pdo->prepare("SELECT id FROM user_api_keys WHERE session_id = ?");
-        $checkStmt->execute([$sessionId]);
-        $existing = $checkStmt->fetch();
+        // Check if keys already exist for this user
+        if ($userId) {
+            // Use user_id for authenticated users
+            $checkStmt = $pdo->prepare("SELECT id FROM user_api_keys WHERE user_id = ?");
+            $checkStmt->execute([$userId]);
+            $existing = $checkStmt->fetch();
 
-        if ($existing) {
-            $updateStmt = $pdo->prepare("
-                UPDATE user_api_keys 
-                SET openrouter_key = ?, gemini_key = ?, groq_key = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE session_id = ?
-            ");
-            $updateStmt->execute([
-                $encryptedKeys['openrouter'],
-                $encryptedKeys['gemini'],
-                $encryptedKeys['groq'],
-                $sessionId
-            ]);
+            if ($existing) {
+                $updateStmt = $pdo->prepare("
+                    UPDATE user_api_keys
+                    SET openrouter_key = ?, gemini_key = ?, groq_key = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                ");
+                $updateStmt->execute([
+                    $encryptedKeys['openrouter'],
+                    $encryptedKeys['gemini'],
+                    $encryptedKeys['groq'],
+                    $userId
+                ]);
+            } else {
+                $insertStmt = $pdo->prepare("
+                    INSERT INTO user_api_keys (user_id, openrouter_key, gemini_key, groq_key)
+                    VALUES (?, ?, ?, ?)
+                ");
+                $insertStmt->execute([
+                    $userId,
+                    $encryptedKeys['openrouter'],
+                    $encryptedKeys['gemini'],
+                    $encryptedKeys['groq']
+                ]);
+            }
         } else {
-            $insertStmt = $pdo->prepare("
-                INSERT INTO user_api_keys (session_id, openrouter_key, gemini_key, groq_key) 
-                VALUES (?, ?, ?, ?)
-            ");
-            $insertStmt->execute([
-                $sessionId,
-                $encryptedKeys['openrouter'],
-                $encryptedKeys['gemini'],
-                $encryptedKeys['groq']
-            ]);
+            // Use session_id for guests (backward compatibility)
+            $checkStmt = $pdo->prepare("SELECT id FROM user_api_keys WHERE session_id = ?");
+            $checkStmt->execute([$sessionId]);
+            $existing = $checkStmt->fetch();
+
+            if ($existing) {
+                $updateStmt = $pdo->prepare("
+                    UPDATE user_api_keys
+                    SET openrouter_key = ?, gemini_key = ?, groq_key = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE session_id = ?
+                ");
+                $updateStmt->execute([
+                    $encryptedKeys['openrouter'],
+                    $encryptedKeys['gemini'],
+                    $encryptedKeys['groq'],
+                    $sessionId
+                ]);
+            } else {
+                $insertStmt = $pdo->prepare("
+                    INSERT INTO user_api_keys (session_id, openrouter_key, gemini_key, groq_key)
+                    VALUES (?, ?, ?, ?)
+                ");
+                $insertStmt->execute([
+                    $sessionId,
+                    $encryptedKeys['openrouter'],
+                    $encryptedKeys['gemini'],
+                    $encryptedKeys['groq']
+                ]);
+            }
         }
 
         return true;
