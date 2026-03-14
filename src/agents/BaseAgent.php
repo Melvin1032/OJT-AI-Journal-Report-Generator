@@ -1,13 +1,18 @@
 <?php
 /**
  * Base Agent Class
- * 
+ *
  * Provides the foundation for AI agents with:
  * - Planning and reasoning capabilities
  * - Tool execution framework
  * - Memory and context management
  * - Multi-step task orchestration
  */
+
+// Load API helpers if not already loaded
+if (!function_exists('callAIWithUserKeys')) {
+    require_once __DIR__ . '/../api_helpers.php';
+}
 
 abstract class BaseAgent {
     protected array $tools = [];
@@ -155,133 +160,35 @@ abstract class BaseAgent {
      * Call AI API for reasoning/planning
      */
     protected function callAI(string $prompt, string $systemMessage = ''): string {
-        // Try Groq first (fast and free)
-        if (!empty(GROQ_API_KEY)) {
-            try {
-                return $this->callGroq($prompt, $systemMessage);
-            } catch (Exception $e) {
-                Logger::warning("Groq failed, falling back to Gemini", ['error' => $e->getMessage()]);
-            }
-        }
-        
-        // Fall back to Gemini
-        if (!empty(GEMINI_API_KEY)) {
-            try {
-                return $this->callGemini($prompt, $systemMessage);
-            } catch (Exception $e) {
-                Logger::warning("Gemini failed, falling back to OpenRouter", ['error' => $e->getMessage()]);
-            }
-        }
-        
-        // Final fallback to existing OpenRouter
-        return callAIAPI($prompt, $systemMessage, QWEN_TEXT_MODEL);
-    }
-    
-    /**
-     * Call Groq API (fast, free)
-     */
-    protected function callGroq(string $prompt, string $systemMessage = ''): string {
+        // Build messages array
         $messages = [];
-        
         if (!empty($systemMessage)) {
             $messages[] = ['role' => 'system', 'content' => $systemMessage];
         }
-        
         $messages[] = ['role' => 'user', 'content' => $prompt];
         
-        $requestData = [
-            'model' => GROQ_MODEL,
-            'messages' => $messages,
-            'temperature' => $this->temperature,
-            'max_tokens' => 2048
-        ];
-        
-        $ch = curl_init(GROQ_API_ENDPOINT);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . GROQ_API_KEY
-            ],
-            CURLOPT_POSTFIELDS => json_encode($requestData),
-            CURLOPT_TIMEOUT => 30
-        ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode !== 200 || $response === false) {
-            throw new Exception("Groq API error: HTTP {$httpCode}");
+        // Use user-specific API keys via helper
+        try {
+            return callAIWithUserKeys($messages);
+        } catch (Exception $e) {
+            Logger::error('AI call failed in BaseAgent', ['error' => $e->getMessage()]);
+            throw $e;
         }
-        
-        $result = json_decode($response, true);
-        return $result['choices'][0]['message']['content'] ?? '';
     }
-    
-    /**
-     * Call Google Gemini API (free tier)
-     */
-    protected function callGemini(string $prompt, string $systemMessage = ''): string {
-        $url = GEMINI_API_ENDPOINT . "/{$this->getModel()}:generateContent?key=" . GEMINI_API_KEY;
-        
-        $fullPrompt = $prompt;
-        if (!empty($systemMessage)) {
-            $fullPrompt = "System: {$systemMessage}\n\nUser: {$prompt}";
-        }
-        
-        $requestData = [
-            'contents' => [[
-                'parts' => [['text' => $fullPrompt]]
-            ]],
-            'generationConfig' => [
-                'temperature' => $this->temperature,
-                'maxOutputTokens' => 2048
-            ]
-        ];
-        
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS => json_encode($requestData),
-            CURLOPT_TIMEOUT => 30
-        ]);
-        
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        
-        if ($httpCode !== 200 || $response === false) {
-            throw new Exception("Gemini API error: HTTP {$httpCode}");
-        }
-        
-        $result = json_decode($response, true);
-        return $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    }
-    
-    /**
-     * Get Gemini model name
-     */
-    protected function getModel(): string {
-        return GEMINI_MODEL;
-    }
-    
+
     /**
      * Synthesize final result from tool outputs
      */
     protected function synthesize(string $goal, array $results): array {
         $resultsJson = json_encode($results, JSON_PRETTY_PRINT);
-        
+
         $prompt = "Synthesize the following results into a coherent response for this goal:\n\n";
         $prompt .= "GOAL: {$goal}\n\n";
         $prompt .= "RESULTS:\n{$resultsJson}\n\n";
         $prompt .= "Provide a clear, well-structured response. Use markdown formatting where appropriate.";
-        
+
         $response = $this->callAI($prompt, "You are a synthesis assistant. Create clear, well-organized responses.");
-        
+
         return [
             'success' => true,
             'goal' => $goal,

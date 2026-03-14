@@ -25,8 +25,17 @@ try {
 
 // Test 2: API Configuration
 echo "<h3>2. API Configuration</h3>";
-echo "<p>API Key: " . (isApiKeyConfigured() ? '✓ Configured' : '✗ Not configured') . "</p>";
-echo "<p>Endpoint: " . htmlspecialchars(QWEN_API_ENDPOINT) . "</p>";
+$userKeys = getUserApiKeys();
+$hasKeys = !empty($userKeys['openrouter']) || !empty($userKeys['groq']) || !empty($userKeys['gemini']);
+echo "<p>API Keys: " . ($hasKeys ? '✓ Configured (from session/database)' : '✗ Not configured') . "</p>";
+if ($userKeys) {
+    echo "<p><strong>Your configured APIs:</strong></p>";
+    echo "<ul>";
+    echo "<li>OpenRouter: " . (!empty($userKeys['openrouter']) ? '✓' : '✗') . "</li>";
+    echo "<li>Groq: " . (!empty($userKeys['groq']) ? '✓' : '✗') . "</li>";
+    echo "<li>Gemini: " . (!empty($userKeys['gemini']) ? '✓' : '✗') . "</li>";
+    echo "</ul>";
+}
 echo "<p><strong>Primary Models:</strong></p>";
 echo "<ul>";
 echo "<li>Vision Model: " . htmlspecialchars(QWEN_VISION_MODEL) . "</li>";
@@ -38,38 +47,42 @@ echo "<li>Vision Fallback: " . htmlspecialchars(FALLBACK_VISION_MODEL) . "</li>"
 echo "<li>Text Fallback: " . htmlspecialchars(FALLBACK_TEXT_MODEL) . "</li>";
 echo "</ul>";
 
-// Test 3: Test API call
+// Test 3: Test API call with user's key
 echo "<h3>3. API Connection Test</h3>";
-$ch = curl_init(QWEN_API_ENDPOINT);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => [
-        'Content-Type: application/json',
-        'Authorization: Bearer ' . QWEN_API_KEY
-    ],
-    CURLOPT_POSTFIELDS => json_encode([
-        'model' => QWEN_TEXT_MODEL,
-        'messages' => [
-            ['role' => 'user', 'content' => 'Say hello']
+if (!empty($userKeys['openrouter'])) {
+    $ch = curl_init(QWEN_API_ENDPOINT);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $userKeys['openrouter']
         ],
-        'max_tokens' => 10
-    ]),
-    CURLOPT_TIMEOUT => 10
-]);
+        CURLOPT_POSTFIELDS => json_encode([
+            'model' => QWEN_TEXT_MODEL,
+            'messages' => [
+                ['role' => 'user', 'content' => 'Say hello']
+            ],
+            'max_tokens' => 10
+        ]),
+        CURLOPT_TIMEOUT => 10
+    ]);
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-if ($httpCode === 200) {
-    echo "<p>✓ API connection successful (HTTP {$httpCode})</p>";
-} else {
-    echo "<p>✗ API connection failed (HTTP {$httpCode})</p>";
-    $result = json_decode($response, true);
-    if (isset($result['error'])) {
-        echo "<p>Error: " . htmlspecialchars($result['error']['message'] ?? $result['message']) . "</p>";
+    if ($httpCode === 200) {
+        echo "<p>✓ API connection successful (HTTP {$httpCode})</p>";
+    } else {
+        echo "<p>✗ API connection failed (HTTP {$httpCode})</p>";
+        $result = json_decode($response, true);
+        if (isset($result['error'])) {
+            echo "<p>Error: " . htmlspecialchars($result['error']['message'] ?? $result['message']) . "</p>";
+        }
     }
+} else {
+    echo "<p>⚠ No OpenRouter API key configured. Please enter your API keys in Settings.</p>";
 }
 
 echo "<hr>";

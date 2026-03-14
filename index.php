@@ -1,5 +1,19 @@
 <?php
+session_start();
 require_once 'config/config.php';
+
+// Redirect to setup if API keys are not configured
+if (!isset($_SESSION['api_keys_configured']) || $_SESSION['api_keys_configured'] !== true) {
+    // Check if keys exist in database
+    if (!hasUserApiKeys()) {
+        header('Location: setup.php');
+        exit;
+    } else {
+        // Restore session from database
+        $_SESSION['api_keys_configured'] = true;
+    }
+}
+
 $csrfToken = generateCSRFToken();
 ?>
 <!DOCTYPE html>
@@ -9,7 +23,10 @@ $csrfToken = generateCSRFToken();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Document your On-the-Job Training journey with AI-powered enhancements">
     <meta name="csrf-token" content="<?php echo $csrfToken; ?>">
-    <title>OJT Journal Report Generator</title>
+    <title>📔 OJT Journal Report Generator</title>
+    <link rel="icon" type="image/png" href="assets/images/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="assets/images/logo.svg">
+    <link rel="apple-touch-icon" href="assets/images/favicon.png">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/print-styles.css">
     <link rel="stylesheet" href="assets/css/enhancements.css">
@@ -33,6 +50,13 @@ $csrfToken = generateCSRFToken();
                             <path d="M2 12l10 5 10-5"/>
                         </svg>
                         AI Agents Dashboard
+                    </a>
+                    <a href="settings.php" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;" title="API Key Settings">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                        </svg>
+                        Settings
                     </a>
                     <button class="theme-toggle" id="themeToggle" title="Toggle dark/light mode" aria-label="Toggle dark mode">
                         <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

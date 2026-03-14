@@ -177,6 +177,9 @@ function initializeConfirmationModal() {
  */
 async function handleSubmit(e) {
     e.preventDefault();
+    e.stopPropagation(); // Prevent any bubbling
+
+    console.log('Form submit triggered');
 
     const title = entryTitle.value.trim();
     const description = entryDescription.value.trim();
@@ -185,19 +188,23 @@ async function handleSubmit(e) {
     // Validate
     if (!title) {
         showStatus('Please enter a title for this entry', 'error');
+        console.log('Validation failed: no title');
         return;
     }
 
     if (!date) {
         showStatus('Please select a date', 'error');
+        console.log('Validation failed: no date');
         return;
     }
 
     if (selectedFiles.length === 0) {
         showStatus('Please upload at least one image', 'error');
+        console.log('Validation failed: no images');
         return;
     }
 
+    console.log('Validation passed, submitting...');
     setLoading(true);
     hideStatus();
 
@@ -211,11 +218,10 @@ async function handleSubmit(e) {
     });
 
     try {
-        console.log('Submitting form...');
-        
         // Get CSRF token from meta tag
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+        console.log('CSRF Token:', csrfToken ? 'Present' : 'Missing');
+
         const response = await fetch('src/process.php?action=createEntry', {
             method: 'POST',
             headers: {
@@ -249,6 +255,7 @@ async function handleSubmit(e) {
         showStatus('Error: ' + error.message, 'error');
     } finally {
         setLoading(false);
+        console.log('Form submit completed');
     }
 }
 

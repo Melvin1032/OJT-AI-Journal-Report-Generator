@@ -55,6 +55,32 @@
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
 }
 
+/* Prevent dark mode from affecting download report preview */
+[data-theme="dark"] .download-report,
+[data-theme="dark"] .download-report * {
+    color: #000 !important;
+    background: #fff !important;
+}
+
+[data-theme="dark"] .report-page,
+[data-theme="dark"] .report-page * {
+    background: #fff !important;
+    color: #000 !important;
+}
+
+/* Prevent dark mode from affecting ISPSC report preview */
+[data-theme="dark"] .ispsc-report,
+[data-theme="dark"] .ispsc-report * {
+    color: #000 !important;
+    background: #fff !important;
+}
+
+[data-theme="dark"] .ispsc-page,
+[data-theme="dark"] .ispsc-page * {
+    background: #fff !important;
+    color: #000 !important;
+}
+
 /* Dark mode date fix */
 [data-theme="dark"] .ojt-entry-date {
     color: var(--text-secondary);
@@ -162,6 +188,7 @@ body {
     border-radius: var(--border-radius-sm);
     font-size: 0.95rem;
     font-family: inherit;
+    color: var(--text-primary);
     transition: var(--transition);
     background: var(--bg-secondary);
 }
@@ -980,19 +1007,20 @@ body {
     padding: 2rem;
 }
 
-/* ISPSC Report Styles */
+/* ISPSC Report Styles - ALWAYS LIGHT MODE */
 .ispsc-report {
     font-family: Arial, sans-serif;
     font-size: 12pt;
     line-height: 1.5;
-    color: #000;
+    color: #000 !important; /* Always black text */
+    background: #fff !important; /* Always white background */
 }
 
 .ispsc-page {
     min-height: 11in;
     padding: 1in;
     margin-bottom: 2rem;
-    background: white;
+    background: white !important; /* Always white background */
     page-break-after: always;
 }
 
@@ -1265,20 +1293,22 @@ body {
     padding: 2rem;
 }
 
-/* Download Report Styles (Preview) */
+/* Download Report Styles (Preview) - ALWAYS LIGHT MODE */
 .download-report {
     font-family: Arial, sans-serif;
     font-size: 12pt;
     line-height: 1.5;
-    color: #000;
+    color: #000 !important; /* Always black text */
+    background: #fff !important; /* Always white background */
 }
 
 .report-page {
     min-height: 11in;
     padding: 1in 1in 1in 1.5in;
     margin-bottom: 2rem;
-    background: white;
+    background: white !important; /* Always white background */
     page-break-after: always;
+}
 }
 
 /* Cover Page */
@@ -1492,7 +1522,7 @@ body {
         font-family: Arial, sans-serif !important;
         font-size: 12pt !important;
         line-height: 1.5 !important;
-        color: #000 !important;
+        color: var(--text-primary) !important;
     }
 
     /* Cover Page Print */

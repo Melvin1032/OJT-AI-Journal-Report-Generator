@@ -8,6 +8,7 @@
 // Load security and logging
 require_once __DIR__ . '/../src/security.php';
 require_once __DIR__ . '/../src/logger.php';
+require_once __DIR__ . '/../src/encryption.php';
 
 // Start output buffering for security
 ob_start();
@@ -264,7 +265,7 @@ function callAIWithFallback($requestData, $primaryModel, $fallbackModel, $timeou
 function callAIAPI($prompt, $systemMessage, $model = null) {
     $model = $model ?? QWEN_TEXT_MODEL;
     $fallback = ($model === QWEN_TEXT_MODEL) ? FALLBACK_TEXT_MODEL : FALLBACK_VISION_MODEL;
-    
+
     $requestData = [
         'messages' => [
             ['role' => 'user', 'content' => $systemMessage . "\n\n" . $prompt]
@@ -272,13 +273,93 @@ function callAIAPI($prompt, $systemMessage, $model = null) {
         'max_tokens' => 500,
         'temperature' => 0.5
     ];
-    
+
     $result = callAIWithFallback($requestData, $model, $fallback, AI_TIMEOUT);
-    
+
     if ($result['success']) {
         return $result['content'];
     }
-    
+
     return 'Content generation unavailable. Please try again.';
+}
+
+/**
+ * Get user-specific API keys from session or database
+ * @return array|null Array of API keys or null if not configured
+ */
+function getUserApiKeys() {
+    // First check session (fastest)
+    if (isset($_SESSION['api_keys']) && is_array($_SESSION['api_keys'])) {
+        return $_SESSION['api_keys'];
+    }
+
+    // Then check database
+    try {
+        $pdo = getDbConnection();
+        $sessionId = session_id();
+
+        $stmt = $pdo->prepare("SELECT openrouter_key, gemini_key, groq_key FROM user_api_keys WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        $result = $stmt->fetch();
+
+        if ($result) {
+            // Decrypt API keys from database
+            $keys = [
+                'openrouter' => getApiKey($result['openrouter_key']),
+                'gemini' => getApiKey($result['gemini_key']),
+                'groq' => getApiKey($result['groq_key'])
+            ];
+
+            // Cache in session for faster access
+            $_SESSION['api_keys'] = $keys;
+
+            return $keys;
+        }
+    } catch (PDOException $e) {
+        error_log('Failed to get user API keys: ' . $e->getMessage());
+    }
+
+    return null;
+}
+
+/**
+ * Check if user has configured API keys
+ * @return bool
+ */
+function hasUserApiKeys() {
+    return getUserApiKeys() !== null;
+}
+
+/**
+ * Get API key for specific service
+ * @param string $service Service name ('openrouter', 'gemini', 'groq')
+ * @return string|null API key or null if not configured
+ */
+function getUserApiKey($service) {
+    $keys = getUserApiKeys();
+    return $keys[$service] ?? null;
+}
+
+/**
+ * Delete user's API keys from database and session
+ * @return bool Success status
+ */
+function deleteUserApiKeys() {
+    try {
+        $pdo = getDbConnection();
+        $sessionId = session_id();
+        
+        $stmt = $pdo->prepare("DELETE FROM user_api_keys WHERE session_id = ?");
+        $stmt->execute([$sessionId]);
+        
+        // Clear session
+        unset($_SESSION['api_keys']);
+        unset($_SESSION['api_keys_configured']);
+        
+        return true;
+    } catch (PDOException $e) {
+        error_log('Failed to delete API keys: ' . $e->getMessage());
+        return false;
+    }
 }
 ?>

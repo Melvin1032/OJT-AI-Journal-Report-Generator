@@ -1,0 +1,31 @@
+# Protect sensitive files in storage directory
+
+# Block access to encryption key
+<Files ".encryption_key">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Block access to database files
+<Files "*.db">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Block access to log files
+<Files "*.log">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Block access to cache files
+<Files "*">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Allow access to uploads directory only
+<Directory "uploads">
+    Order allow,deny
+    Allow from all
+</Directory>

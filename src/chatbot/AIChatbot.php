@@ -169,14 +169,17 @@ PROMPT;
                 'trace' => $e->getTraceAsString()
             ]);
 
+            // Get user API keys for debug info
+            $userKeys = getUserApiKeys();
+
             return [
                 'success' => false,
                 'message' => "I'm sorry, I'm having trouble responding right now. Please try again.",
                 'error' => $e->getMessage(),
                 'debug' => [
-                    'groq_key_set' => defined('GROQ_API_KEY') && !empty(GROQ_API_KEY),
-                    'gemini_key_set' => defined('GEMINI_API_KEY') && !empty(GEMINI_API_KEY),
-                    'qwen_key_set' => defined('QWEN_API_KEY') && !empty(QWEN_API_KEY)
+                    'openrouter_key_set' => !empty($userKeys['openrouter']),
+                    'groq_key_set' => !empty($userKeys['groq']),
+                    'gemini_key_set' => !empty($userKeys['gemini'])
                 ]
             ];
         }
@@ -343,82 +346,87 @@ PROMPT;
      * Call AI API for chat response
      */
     private function callAI(array $messages): string {
-        // Use OpenRouter as primary (your existing working API)
-        if (!empty(QWEN_API_KEY)) {
+        // Get user-specific API keys
+        $userKeys = getUserApiKeys();
+        
+        // Use OpenRouter as primary (user's key from session/database)
+        if (!empty($userKeys['openrouter'])) {
             try {
-                return $this->callOpenRouter($messages);
+                return $this->callOpenRouter($messages, $userKeys['openrouter']);
             } catch (Exception $e) {
                 Logger::error('OpenRouter failed', ['error' => $e->getMessage()]);
                 // Continue to try other APIs
             }
         }
-        
+
         // Use Groq (if available)
-        if (!empty(GROQ_API_KEY)) {
+        if (!empty($userKeys['groq'])) {
             try {
-                return $this->callGroq($messages);
+                return $this->callGroq($messages, $userKeys['groq']);
             } catch (Exception $e) {
                 Logger::error('Groq failed', ['error' => $e->getMessage()]);
             }
         }
-        
+
         // Use Gemini (if available)
-        if (!empty(GEMINI_API_KEY)) {
+        if (!empty($userKeys['gemini'])) {
             try {
-                return $this->callGemini($messages);
+                return $this->callGemini($messages, $userKeys['gemini']);
             } catch (Exception $e) {
                 Logger::error('Gemini failed', ['error' => $e->getMessage()]);
             }
         }
-        
-        throw new Exception('All AI APIs failed or are unavailable');
+
+        throw new Exception('No API keys configured. Please set up your API keys in Settings.');
     }
     
     /**
      * Call Groq API
      */
-    private function callGroq(array $messages): string {
+    private function callGroq(array $messages, string $apiKey): string {
         $requestData = [
-            'model' => GROQ_MODEL,
+            'model' => getenv('GROQ_MODEL') ?: 'llama-3.3-70b-versatile',
             'messages' => $messages,
             'temperature' => 0.7,
             'max_tokens' => 500
         ];
-        
-        $ch = curl_init(GROQ_API_ENDPOINT);
+
+        $ch = curl_init(getenv('GROQ_API_ENDPOINT') ?: 'https://api.groq.com/openai/v1/chat/completions');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Authorization: Bearer ' . GROQ_API_KEY
+                'Authorization: Bearer ' . $apiKey
             ],
             CURLOPT_POSTFIELDS => json_encode($requestData),
             CURLOPT_TIMEOUT => 30
         ]);
-        
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
+
         if ($httpCode !== 200 || $response === false) {
             throw new Exception("Groq API error: HTTP {$httpCode}");
         }
-        
+
         $result = json_decode($response, true);
         return $result['choices'][0]['message']['content'] ?? '';
     }
-    
+
     /**
      * Call Gemini API
      */
-    private function callGemini(array $messages): string {
-        $url = GEMINI_API_ENDPOINT . "/gemini-2.0-flash-exp:generateContent?key=" . GEMINI_API_KEY;
-        
+    private function callGemini(array $messages, string $apiKey): string {
+        $model = getenv('GEMINI_MODEL') ?: 'gemini-2.0-flash-exp';
+        $endpoint = getenv('GEMINI_API_ENDPOINT') ?: 'https://generativelanguage.googleapis.com/v1beta/models';
+        $url = $endpoint . "/{$model}:generateContent?key=" . $apiKey;
+
         // Convert messages to Gemini format
         $lastMessage = end($messages);
         $prompt = $lastMessage['content'] ?? '';
-        
+
         $requestData = [
             'contents' => [[
                 'parts' => [['text' => $prompt]]
@@ -428,7 +436,7 @@ PROMPT;
                 'maxOutputTokens' => 500
             ]
         ];
-        
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -437,52 +445,52 @@ PROMPT;
             CURLOPT_POSTFIELDS => json_encode($requestData),
             CURLOPT_TIMEOUT => 30
         ]);
-        
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
+
         if ($httpCode !== 200 || $response === false) {
             throw new Exception("Gemini API error: HTTP {$httpCode}");
         }
-        
+
         $result = json_decode($response, true);
         return $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
     }
-    
+
     /**
      * Call OpenRouter API
      */
-    private function callOpenRouter(array $messages): string {
+    private function callOpenRouter(array $messages, string $apiKey): string {
         $requestData = [
-            'model' => QWEN_TEXT_MODEL,
+            'model' => getenv('QWEN_TEXT_MODEL') ?: 'qwen/qwen-2.5-72b-instruct',
             'messages' => $messages,
             'temperature' => 0.7,
             'max_tokens' => 500
         ];
-        
-        $ch = curl_init(QWEN_API_ENDPOINT);
+
+        $ch = curl_init(getenv('QWEN_API_ENDPOINT') ?: 'https://openrouter.ai/api/v1/chat/completions');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
-                'Authorization: Bearer ' . QWEN_API_KEY,
+                'Authorization: Bearer ' . $apiKey,
                 'HTTP-Referer: http://localhost:8000',
                 'X-Title: OJT Journal Chatbot'
             ],
             CURLOPT_POSTFIELDS => json_encode($requestData),
             CURLOPT_TIMEOUT => 30
         ]);
-        
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
+
         if ($httpCode !== 200 || $response === false) {
             throw new Exception("OpenRouter API error: HTTP {$httpCode}");
         }
-        
+
         $result = json_decode($response, true);
         return $result['choices'][0]['message']['content'] ?? '';
     }

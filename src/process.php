@@ -32,6 +32,7 @@ register_shutdown_function(function() {
 });
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/api_helpers.php';
 
 // Start session for chatbot
 if (session_status() === PHP_SESSION_NONE) {
@@ -46,9 +47,13 @@ $startTime = Date('Y-m-d H:i:s');
  * Main request handler
  */
 try {
-    // Validate CSRF for POST requests
+    // Validate CSRF for POST requests (skip for file uploads which use FormData)
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        requireCSRFValidation();
+        // For createEntry (file uploads), make CSRF validation less strict
+        $action = $_GET['action'] ?? '';
+        if ($action !== 'createEntry') {
+            requireCSRFValidation();
+        }
     }
 
     $action = $_GET['action'] ?? '';
@@ -170,9 +175,11 @@ try {
 function createOJTEntry() {
     $requestStart = microtime(true);
 
-    if (!isApiKeyConfigured()) {
-        Logger::error('API key not configured');
-        jsonResponse(['error' => 'API key not configured'], 500);
+    // Check if user has API keys configured
+    $userKeys = getUserApiKeys();
+    if (empty($userKeys['openrouter']) && empty($userKeys['groq']) && empty($userKeys['gemini'])) {
+        Logger::error('API keys not configured for user');
+        jsonResponse(['error' => 'API keys not configured. Please go to Settings and enter your API keys.'], 500);
     }
 
     // Validate and sanitize inputs
@@ -407,45 +414,57 @@ function processImage($file, $entryId, $order) {
  * Analyze image using AI API with fallback support
  */
 function analyzeImageWithQwen($imagePath) {
-    // Convert image to base64
-    $imageData = base64_encode(file_get_contents($imagePath));
-    $mimeType = mime_content_type($imagePath);
-    $base64Image = 'data:' . $mimeType . ';base64,' . $imageData;
+    try {
+        // Convert image to base64
+        $imageData = base64_encode(file_get_contents($imagePath));
+        $mimeType = mime_content_type($imagePath);
+        $base64Image = 'data:' . $mimeType . ';base64,' . $imageData;
 
-    // Optimized prompt: concise, direct, token-efficient, narrative best practices
-    $prompt = "Analyze this image for an OJT journal. Write 1-2 sentences in PAST TENSE describing: (1) what was shown in the image, (2) the learning purpose or skill demonstrated. Professional tone, no labels. Do NOT start with 'Today', 'This', 'Here', or 'In this'.";
+        // Optimized prompt: concise, direct, token-efficient, narrative best practices
+        $prompt = "Analyze this image for an OJT journal. Write 1-2 sentences in PAST TENSE describing: (1) what was shown in the image, (2) the learning purpose or skill demonstrated. Professional tone, no labels. Do NOT start with 'Today', 'This', 'Here', or 'In this'.";
 
-    $requestData = [
-        'messages' => [
-            [
-                'role' => 'user',
-                'content' => [
-                    [
-                        'type' => 'image_url',
-                        'image_url' => ['url' => $base64Image]
-                    ],
-                    [
-                        'type' => 'text',
-                        'text' => $prompt
+        $requestData = [
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => [
+                        [
+                            'type' => 'image_url',
+                            'image_url' => ['url' => $base64Image]
+                        ],
+                        [
+                            'type' => 'text',
+                            'text' => $prompt
+                        ]
                     ]
                 ]
-            ]
-        ],
-        'max_tokens' => 100,
-        'temperature' => 0.5
-    ];
+            ],
+            'max_tokens' => 100
+        ];
 
-    // Use fallback mechanism
-    $result = callAIWithFallback($requestData, QWEN_VISION_MODEL, FALLBACK_VISION_MODEL, AI_TIMEOUT);
-
-    if ($result['success']) {
-        if ($result['used_fallback']) {
-            error_log("Image analysis used fallback model: " . $result['model']);
+        // Use user-specific API keys - vision only works with OpenRouter
+        $userKeys = getUserApiKeys();
+        
+        if (empty($userKeys['openrouter'])) {
+            error_log('OpenRouter key not set for image analysis');
+            return 'Image analysis unavailable - OpenRouter API key required';
         }
-        return $result['content'];
-    }
 
-    return ['error' => $result['error']];
+        // Call OpenRouter directly for vision
+        $result = callOpenRouterWithKey(
+            $requestData['messages'], 
+            $userKeys['openrouter'], 
+            getenv('QWEN_VISION_MODEL') ?: 'qwen/qwen-2-vl-7b-instruct',
+            ['max_tokens' => 100]
+        );
+        
+        return $result;
+        
+    } catch (Exception $e) {
+        error_log('Image analysis failed: ' . $e->getMessage());
+        error_log('Stack trace: ' . $e->getTraceAsString());
+        return 'Image analysis unavailable: ' . $e->getMessage();
+    }
 }
 
 /**
@@ -527,45 +546,43 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
  * Enhance user description using AI
  */
 function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = '') {
-    // Optimized prompt: direct, token-efficient, narrative best practices
-    $prompt = "Write a professional OJT journal entry in narrative form. Use past tense.\n\n";
-    $prompt .= "Entry Title: {$userDescription}\n";
+    try {
+        // Optimized prompt: direct, token-efficient, narrative best practices
+        $prompt = "Write a professional OJT journal entry in narrative form. Use past tense.\n\n";
+        $prompt .= "Entry Title: {$userDescription}\n";
 
-    if (!empty($imageContext)) {
-        $prompt .= "Image Context: {$imageContext}\n";
-    }
-
-    $prompt .= "\nGuidelines:\n";
-    $prompt .= "- Write in 2 paragraphs: (1) tasks accomplished and activities, (2) skills learned and insights\n";
-    $prompt .= "- Use THIRD PERSON or FIRST PERSON past tense (e.g., 'The intern developed...' or 'I developed...')\n";
-    $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this'\n";
-    $prompt .= "- Begin directly with the main activity or accomplishment\n";
-    $prompt .= "- Professional, formal tone suitable for academic documentation\n";
-    $prompt .= "- No titles, bullets, or section headers in the output\n";
-
-    $requestData = [
-        'messages' => [
-            [
-                'role' => 'user',
-                'content' => $prompt
-            ]
-        ],
-        'max_tokens' => 250,
-        'temperature' => 0.5
-    ];
-
-    // Use fallback mechanism
-    $result = callAIWithFallback($requestData, QWEN_TEXT_MODEL, FALLBACK_TEXT_MODEL, AI_TIMEOUT);
-
-    if ($result['success']) {
-        if ($result['used_fallback']) {
-            error_log("Enhance description used fallback model: " . $result['model']);
+        if (!empty($imageContext)) {
+            $prompt .= "Image Context: {$imageContext}\n";
         }
-        return cleanDescription($result['content']);
-    }
 
-    // Fallback to user description if AI fails
-    return $userDescription;
+        $prompt .= "\nGuidelines:\n";
+        $prompt .= "- Write in 2 paragraphs: (1) tasks accomplished and activities, (2) skills learned and insights\n";
+        $prompt .= "- Use THIRD PERSON or FIRST PERSON past tense (e.g., 'The intern developed...' or 'I developed...')\n";
+        $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this'\n";
+        $prompt .= "- Begin directly with the main activity or accomplishment\n";
+        $prompt .= "- Professional, formal tone suitable for academic documentation\n";
+        $prompt .= "- No titles, bullets, or section headers in the output\n";
+
+        $requestData = [
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt
+                ]
+            ],
+            'max_tokens' => 250
+        ];
+
+        // Use user-specific API keys
+        $result = callAIWithUserKeys($requestData['messages'], QWEN_TEXT_MODEL, ['max_tokens' => 250]);
+        
+        return cleanDescription($result);
+        
+    } catch (Exception $e) {
+        error_log('Failed to enhance description: ' . $e->getMessage());
+        // Return user description if AI fails
+        return $userDescription;
+    }
 }
 
 /**
@@ -692,8 +709,10 @@ function updateDescription() {
  * Generate AI-powered narrative report for all entries
  */
 function generateNarrativeReport() {
-    if (!isApiKeyConfigured()) {
-        jsonResponse(['error' => 'API key not configured'], 500);
+    // Check if user has API keys configured
+    $userKeys = getUserApiKeys();
+    if (empty($userKeys['openrouter']) && empty($userKeys['groq']) && empty($userKeys['gemini'])) {
+        jsonResponse(['error' => 'API keys not configured. Please go to Settings and enter your API keys.'], 500);
     }
 
     $pdo = getDbConnection();
@@ -730,60 +749,25 @@ function generateNarrativeReport() {
     $prompt .= "Entries:\n{$contextText}\n\n";
     $prompt .= "Professional tone, 100-150 words.";
 
-    $requestData = [
-        'model' => QWEN_TEXT_MODEL,
-        'messages' => [
+    try {
+        // Use user-specific API keys
+        $messages = [
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
-        ],
-        'max_tokens' => 300,
-        'temperature' => 0.5
-    ];
-
-    $ch = curl_init(QWEN_API_ENDPOINT);
-
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            'Authorization: Bearer ' . QWEN_API_KEY,
-            'HTTP-Referer: http://localhost:8000',
-            'X-Title: OJT Journal Generator'
-        ],
-        CURLOPT_POSTFIELDS => json_encode($requestData),
-        CURLOPT_TIMEOUT => 60
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-
-    curl_close($ch);
-
-    if ($response === false) {
-        jsonResponse(['error' => 'API connection failed: ' . $curlError], 500);
-    }
-
-    $result = json_decode($response, true);
-
-    if ($httpCode !== 200) {
-        $errorMsg = $result['message'] ?? $result['error']['message'] ?? 'Unknown API error';
-        jsonResponse(['error' => 'API error (' . $httpCode . '): ' . $errorMsg], 500);
-    }
-
-    if (isset($result['choices'][0]['message']['content'])) {
-        $narrative = trim($result['choices'][0]['message']['content']);
+        ];
+        
+        $narrative = callAIWithUserKeys($messages, QWEN_TEXT_MODEL);
 
         jsonResponse([
             'success' => true,
             'narrative' => $narrative,
             'entry_count' => count($entries)
         ]);
-    } else {
-        jsonResponse(['error' => 'Unexpected API response format'], 500);
+    } catch (Exception $e) {
+        Logger::error('Narrative generation error', ['error' => $e->getMessage()]);
+        jsonResponse(['error' => $e->getMessage()], 500);
     }
 }
 
@@ -791,8 +775,14 @@ function generateNarrativeReport() {
  * Generate full ISPSC-formatted OJT Report with all chapters
  */
 function generateISPSCReport() {
-    if (!isApiKeyConfigured()) {
-        jsonResponse(['error' => 'API key not configured'], 500);
+    try {
+        // Check if user has API keys configured
+        $userKeys = getUserApiKeys();
+        if (empty($userKeys['openrouter']) && empty($userKeys['groq']) && empty($userKeys['gemini'])) {
+            jsonResponse(['error' => 'API keys not configured. Please go to Settings and enter your API keys.'], 500);
+        }
+    } catch (Exception $e) {
+        jsonResponse(['error' => 'API configuration error: ' . $e->getMessage()], 500);
     }
 
     $pdo = getDbConnection();
@@ -855,7 +845,12 @@ function generateISPSCReport() {
         if (!empty($companyAddress)) $chapter1Prompt .= "Location: {$companyAddress}\n";
         $chapter1Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
         $chapter1Prompt .= "Write Chapter I:";
-        $chapter1 = callAIAPI($chapter1Prompt, 'Write OJT Company Profile based on entry context. Formal tone, max 150 words.', QWEN_TEXT_MODEL);
+        
+        try {
+            $chapter1 = callAIWithUserKeys([['role' => 'user', 'content' => $chapter1Prompt]], QWEN_TEXT_MODEL);
+        } catch (Exception $e) {
+            jsonResponse(['error' => 'Failed to generate Chapter I: ' . $e->getMessage()], 500);
+        }
     }
 
     // Chapter II - Use stored info or generate
@@ -866,7 +861,12 @@ function generateISPSCReport() {
         $chapter2BackgroundPrompt .= "Describe the preparation and planning before starting the immersion based on the activities shown.\n\n";
         $chapter2BackgroundPrompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
         $chapter2BackgroundPrompt .= "Write Background section:";
-        $chapter2Background = callAIAPI($chapter2BackgroundPrompt, 'Write OJT background section. Formal tone, max 100 words.', QWEN_TEXT_MODEL);
+        
+        try {
+            $chapter2Background = callAIWithUserKeys([['role' => 'user', 'content' => $chapter2BackgroundPrompt]], QWEN_TEXT_MODEL);
+        } catch (Exception $e) {
+            jsonResponse(['error' => 'Failed to generate Chapter II: ' . $e->getMessage()], 500);
+        }
         $chapter2Purpose = $chapter2Background;
     }
 
@@ -893,7 +893,12 @@ function generateISPSCReport() {
         $chapter3Prompt .= "2. RECOMMENDATION - Suggestions for: (a) future OJT students, (b) company, (c) ISPSC\n\n";
         $chapter3Prompt .= "ALL OJT ENTRIES:\n{$fullContext}\n\n";
         $chapter3Prompt .= "Write Chapter III:";
-        $chapter3 = callAIAPI($chapter3Prompt, 'Write OJT conclusion and recommendations. Formal, concise, max 150 words.', QWEN_TEXT_MODEL);
+        
+        try {
+            $chapter3 = callAIWithUserKeys([['role' => 'user', 'content' => $chapter3Prompt]], QWEN_TEXT_MODEL);
+        } catch (Exception $e) {
+            jsonResponse(['error' => 'Failed to generate Chapter III: ' . $e->getMessage()], 500);
+        }
     }
 
     jsonResponse([
@@ -1131,8 +1136,10 @@ function getStudentInfo() {
  * Generate chapter content using AI
  */
 function generateChapterAI() {
-    if (!isApiKeyConfigured()) {
-        jsonResponse(['error' => 'API key not configured'], 500);
+    // Check if user has API keys configured
+    $userKeys = getUserApiKeys();
+    if (empty($userKeys['openrouter']) && empty($userKeys['groq']) && empty($userKeys['gemini'])) {
+        jsonResponse(['error' => 'API keys not configured. Please go to Settings and enter your API keys.'], 500);
     }
 
     $data = json_decode(file_get_contents('php://input'), true);
@@ -1237,18 +1244,29 @@ function generateChapterAI() {
             jsonResponse(['error' => 'Invalid chapter type'], 400);
     }
 
-    $result = callAIAPI($prompt, $systemPrompt, QWEN_TEXT_MODEL);
-
-    // Clean up any chapter headers that might still be in the response
-    $content = $result;
-    $content = preg_replace('/^#+\s*(Chapter\s*[I-V]+|INTRODUCTION|PURPOSE|CONCLUSION|RECOMMENDATIONS)[:\s]*\n*/im', '', $content);
-    $content = trim($content);
-
-    jsonResponse([
-        'success' => true,
-        'content' => $content,
-        'chapter' => $chapter
-    ]);
+    try {
+        // Use user-specific API keys instead of .env keys
+        $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => $prompt]
+        ];
+        
+        $result = callAIWithUserKeys($messages, QWEN_TEXT_MODEL, ['max_tokens' => 500]);
+        
+        // Clean up any chapter headers that might still be in the response
+        $content = $result;
+        $content = preg_replace('/^#+\s*(Chapter\s*[I-V]+|INTRODUCTION|PURPOSE|CONCLUSION|RECOMMENDATIONS)[:\s]*\n*/im', '', $content);
+        $content = trim($content);
+        
+        jsonResponse([
+            'success' => true,
+            'content' => $content,
+            'chapter' => $chapter
+        ]);
+    } catch (Exception $e) {
+        Logger::error('Chapter AI generation failed', ['error' => $e->getMessage()]);
+        jsonResponse(['error' => 'Content generation unavailable. Please try again. ' . $e->getMessage()], 500);
+    }
 }
 
 // ==================== AI AGENT HANDLERS ====================

@@ -96,7 +96,7 @@
     font-family: Arial, sans-serif;
     font-size: 12pt;
     line-height: 1.5;
-    color: #000;
+    color: var(--text-primary);
 }
 
 .report-page {
@@ -480,7 +480,7 @@
         font-family: Arial, sans-serif !important;
         font-size: 12pt !important;
         line-height: 1.5 !important;
-        color: #000 !important;
+        color: var(--text-primary) !important;
     }
 
     /* Cover Page Print */
