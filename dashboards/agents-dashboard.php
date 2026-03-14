@@ -21,6 +21,16 @@
             margin-bottom: 2rem;
             box-shadow: var(--shadow-lg);
         }
+    </style>
+</head>
+<body>
+<?php
+// Start session for dashboard features
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+?>
+    <div class="dashboard-container">
 
         .dashboard-header h1 {
             margin: 0 0 0.5rem 0;

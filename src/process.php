@@ -33,6 +33,11 @@ register_shutdown_function(function() {
 
 require_once __DIR__ . '/../config/config.php';
 
+// Start session for chatbot
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Log request start
 $requestStart = microtime(true);
 $startTime = Date('Y-m-d H:i:s');
@@ -116,6 +121,17 @@ try {
             break;
         case 'agent/improve-entry':
             improveEntryWithAgent();
+            break;
+        
+        // Chatbot Endpoints
+        case 'chatbot/send':
+            chatbotSend();
+            break;
+        case 'chatbot/clear':
+            chatbotClear();
+            break;
+        case 'chatbot/history':
+            chatbotHistory();
             break;
             
         default:
@@ -1346,21 +1362,73 @@ function improveEntryWithAgent() {
     if (!$entryId) {
         jsonResponse(['error' => 'Entry ID required'], 400);
     }
-    
+
     $pdo = getDbConnection();
     $stmt = $pdo->prepare("SELECT * FROM ojt_entries WHERE id = :id");
     $stmt->bindValue(':id', $entryId, PDO::PARAM_INT);
     $stmt->execute();
     $entry = $stmt->fetch();
-    
+
     if (!$entry) {
         jsonResponse(['error' => 'Entry not found'], 404);
     }
-    
+
     $agent = new QualityAgent();
     $result = $agent->execute("Improve this entry", ['entry' => $entry]);
+
+    jsonResponse($result);
+}
+
+// ==================== CHATBOT HANDLERS ====================
+
+/**
+ * Send message to chatbot
+ */
+function chatbotSend() {
+    require_once __DIR__ . '/../src/chatbot/AIChatbot.php';
+    
+    $message = $_POST['message'] ?? '';
+    
+    if (empty(trim($message))) {
+        jsonResponse(['error' => 'Message cannot be empty'], 400);
+    }
+    
+    $chatbot = new AIChatbot();
+    
+    // Get context from request
+    $context = [
+        'user' => $_SESSION['user'] ?? null,
+        'entry_count' => $_SESSION['entry_count'] ?? 0
+    ];
+    
+    $result = $chatbot->chat($message, $context);
     
     jsonResponse($result);
+}
+
+/**
+ * Clear chatbot history
+ */
+function chatbotClear() {
+    unset($_SESSION['chatbot_conversation_id']);
+    
+    jsonResponse(['success' => true, 'message' => 'Conversation cleared']);
+}
+
+/**
+ * Get chatbot history
+ */
+function chatbotHistory() {
+    require_once __DIR__ . '/../src/chatbot/AIChatbot.php';
+    
+    $chatbot = new AIChatbot();
+    $history = $chatbot->getHistory();
+    
+    jsonResponse([
+        'success' => true,
+        'history' => $history,
+        'conversation_id' => $_SESSION['chatbot_conversation_id'] ?? null
+    ]);
 }
 
 // ==================== HELPER FUNCTIONS ====================

@@ -487,5 +487,6 @@ $csrfToken = generateCSRFToken();
     <script src="assets/js/script.js"></script>
     <script src="assets/js/print-report.js"></script>
     <script src="assets/js/agents.js"></script>
+    <script src="assets/js/chatbot.js"></script>
 </body>
 </html>
