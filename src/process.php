@@ -628,81 +628,36 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
 }
 
 /**
- * Get weekly report entries
+ * Get weekly report entries (filtered by current user)
  */
 function getWeeklyReport() {
     $pdo = getDbConnection();
-    $currentSession = session_id();
-    $currentUserId = getCurrentUserId(); // Get user_id if logged in
+    $currentUserId = getCurrentUserId();
 
-    // Check if user_id column exists (preferred authentication)
-    $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
-    $hasUserIsolation = in_array('user_id', $tableInfo);
-    $hasSessionIsolation = in_array('session_id', $tableInfo);
-
-    if ($hasUserIsolation && $currentUserId) {
-        // Get entries for current user only (user isolation)
-        $stmt = $pdo->prepare("
-            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
-            FROM ojt_entries e
-            WHERE e.user_id = :user_id
-            ORDER BY e.entry_date DESC, e.created_at DESC
-        ");
-        $stmt->execute([':user_id' => $currentUserId]);
-    } elseif ($hasSessionIsolation) {
-        // Fallback to session_id for guests or if user_id not available
-        $stmt = $pdo->prepare("
-            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
-            FROM ojt_entries e
-            WHERE e.session_id = :session_id OR e.session_id IS NULL
-            ORDER BY e.entry_date DESC, e.created_at DESC
-        ");
-        $stmt->execute([':session_id' => $currentSession]);
-    } else {
-        // Fallback: Get all entries (no isolation - migration not run yet)
-        $stmt = $pdo->prepare("
-            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
-            FROM ojt_entries e
-            ORDER BY e.entry_date DESC, e.created_at DESC
-        ");
-        $stmt->execute();
+    // Require authentication
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
     }
 
+    // Get entries for current user ONLY
+    $stmt = $pdo->prepare("
+        SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
+        FROM ojt_entries e
+        WHERE e.user_id = ?
+        ORDER BY e.entry_date DESC, e.created_at DESC
+    ");
+    $stmt->execute([$currentUserId]);
     $entries = $stmt->fetchAll();
 
-    // Get images for each entry
+    // Get images for each entry (filtered by user_id)
     foreach ($entries as &$entry) {
-        if ($hasUserIsolation && $currentUserId) {
-            $stmt = $pdo->prepare("
-                SELECT id, image_path, image_order, ai_description
-                FROM entry_images
-                WHERE entry_id = :entry_id AND user_id = :user_id
-                ORDER BY image_order ASC
-            ");
-            $stmt->execute([
-                ':entry_id' => $entry['id'],
-                ':user_id' => $currentUserId
-            ]);
-        } elseif ($hasSessionIsolation) {
-            $stmt = $pdo->prepare("
-                SELECT id, image_path, image_order, ai_description
-                FROM entry_images
-                WHERE entry_id = :entry_id AND (session_id = :session_id OR session_id IS NULL)
-                ORDER BY image_order ASC
-            ");
-            $stmt->execute([
-                ':entry_id' => $entry['id'],
-                ':session_id' => $currentSession
-            ]);
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT id, image_path, image_order, ai_description
-                FROM entry_images
-                WHERE entry_id = :entry_id
-                ORDER BY image_order ASC
-            ");
-            $stmt->execute([':entry_id' => $entry['id']]);
-        }
+        $stmt = $pdo->prepare("
+            SELECT id, image_path, image_order, ai_description
+            FROM entry_images
+            WHERE entry_id = ? AND user_id = ?
+            ORDER BY image_order ASC
+        ");
+        $stmt->execute([$entry['id'], $currentUserId]);
         $entry['images'] = $stmt->fetchAll();
     }
 
