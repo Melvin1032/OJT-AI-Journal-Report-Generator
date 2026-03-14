@@ -218,12 +218,13 @@ function createOJTEntry() {
     }
 
     $pdo = getDbConnection();
+    $currentSession = session_id();
 
     try {
-        // Create the OJT entry first
+        // Create the OJT entry with session_id (user isolation)
         $stmt = $pdo->prepare("
-            INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at)
-            VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at)
+            INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at, session_id)
+            VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at, :session_id)
         ");
 
         // Generate initial enhanced description (will be updated after AI analysis)
@@ -234,11 +235,12 @@ function createOJTEntry() {
             ':user_desc' => $userDescription,
             ':entry_date' => $entryDate,
             ':ai_desc' => $initialEnhanced,
-            ':created_at' => date('Y-m-d H:i:s')
+            ':created_at' => date('Y-m-d H:i:s'),
+            ':session_id' => $currentSession
         ]);
 
         $entryId = $pdo->lastInsertId();
-        Logger::info('Entry created', ['entry_id' => $entryId, 'title' => $title]);
+        Logger::info('Entry created', ['entry_id' => $entryId, 'title' => $title, 'session' => $currentSession]);
 
         // Process images with validation
         $imageResults = [];
@@ -287,8 +289,8 @@ function createOJTEntry() {
 
             // Save to database
             $stmt = $pdo->prepare("
-                INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
-                VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
+                INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at, session_id)
+                VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at, :session_id)
             ");
 
             $stmt->execute([
@@ -296,7 +298,8 @@ function createOJTEntry() {
                 ':image_path' => $imagePath,
                 ':order' => $i,
                 ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
-                ':created_at' => date('Y-m-d H:i:s')
+                ':created_at' => date('Y-m-d H:i:s'),
+                ':session_id' => $currentSession
             ]);
 
             $imageResults[] = [
@@ -590,15 +593,16 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
  */
 function getWeeklyReport() {
     $pdo = getDbConnection();
+    $currentSession = session_id();
 
-    // Get all OJT entries (no date filter)
+    // Get entries for current session only (user isolation)
     $stmt = $pdo->prepare("
         SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
         FROM ojt_entries e
+        WHERE e.session_id = :session_id OR e.session_id IS NULL
         ORDER BY e.entry_date DESC, e.created_at DESC
     ");
-
-    $stmt->execute();
+    $stmt->execute([':session_id' => $currentSession]);
 
     $entries = $stmt->fetchAll();
 
@@ -607,10 +611,13 @@ function getWeeklyReport() {
         $stmt = $pdo->prepare("
             SELECT id, image_path, image_order, ai_description
             FROM entry_images
-            WHERE entry_id = :entry_id
+            WHERE entry_id = :entry_id AND (session_id = :session_id OR session_id IS NULL)
             ORDER BY image_order ASC
         ");
-        $stmt->execute([':entry_id' => $entry['id']]);
+        $stmt->execute([
+            ':entry_id' => $entry['id'],
+            ':session_id' => $currentSession
+        ]);
         $entry['images'] = $stmt->fetchAll();
     }
 
@@ -635,11 +642,12 @@ function getWeeklyReport() {
 }
 
 /**
- * Delete an OJT entry and its images
+ * Delete an OJT entry
  */
 function deleteEntry() {
     $data = json_decode(file_get_contents('php://input'), true);
     $id = $data['id'] ?? null;
+    $currentSession = session_id();
 
     if (!$id) {
         jsonResponse(['error' => 'Invalid entry ID'], 400);
@@ -647,9 +655,23 @@ function deleteEntry() {
 
     $pdo = getDbConnection();
 
+    // Verify ownership - only delete if entry belongs to current session
+    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
+    $stmt->execute([
+        ':id' => $id,
+        ':session_id' => $currentSession
+    ]);
+    
+    if (!$stmt->fetch()) {
+        jsonResponse(['error' => 'Entry not found or you do not have permission to delete it'], 404);
+    }
+
     // Get all image paths for this entry
-    $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = :id");
-    $stmt->execute([':id' => $id]);
+    $stmt = $pdo->prepare("SELECT image_path FROM entry_images WHERE entry_id = :id AND (session_id = :session_id OR session_id IS NULL)");
+    $stmt->execute([
+        ':id' => $id,
+        ':session_id' => $currentSession
+    ]);
     $images = $stmt->fetchAll();
 
     // Delete image files
@@ -660,13 +682,19 @@ function deleteEntry() {
         }
     }
 
-    // Delete images from database (cascade will handle entry deletion)
-    $stmt = $pdo->prepare("DELETE FROM entry_images WHERE entry_id = :id");
-    $stmt->execute([':id' => $id]);
+    // Delete images from database
+    $stmt = $pdo->prepare("DELETE FROM entry_images WHERE entry_id = :id AND session_id = :session_id");
+    $stmt->execute([
+        ':id' => $id,
+        ':session_id' => $currentSession
+    ]);
 
-    // Delete the entry
-    $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id");
-    $stmt->execute([':id' => $id]);
+    // Delete the entry (with session check)
+    $stmt = $pdo->prepare("DELETE FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
+    $stmt->execute([
+        ':id' => $id,
+        ':session_id' => $currentSession
+    ]);
 
     jsonResponse(['success' => true]);
 }
@@ -678,6 +706,7 @@ function updateDescription() {
     $data = json_decode(file_get_contents('php://input'), true);
     $id = $data['id'] ?? null;
     $description = $data['description'] ?? '';
+    $currentSession = session_id();
 
     if (!$id) {
         jsonResponse(['error' => 'Invalid entry ID'], 400);
@@ -689,17 +718,29 @@ function updateDescription() {
 
     $pdo = getDbConnection();
 
+    // Verify ownership before updating
+    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
+    $stmt->execute([
+        ':id' => $id,
+        ':session_id' => $currentSession
+    ]);
+    
+    if (!$stmt->fetch()) {
+        jsonResponse(['error' => 'Entry not found or you do not have permission to update it'], 404);
+    }
+
     // Update both user_description and ai_enhanced_description
     // When user manually edits, both fields should reflect the change
     $stmt = $pdo->prepare("
-        UPDATE ojt_entries 
-        SET user_description = :description, 
-            ai_enhanced_description = :description 
-        WHERE id = :id
+        UPDATE ojt_entries
+        SET user_description = :description,
+            ai_enhanced_description = :description
+        WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)
     ");
     $stmt->execute([
         ':description' => $description,
-        ':id' => $id
+        ':id' => $id,
+        ':session_id' => $currentSession
     ]);
 
     jsonResponse(['success' => true]);
@@ -716,15 +757,16 @@ function generateNarrativeReport() {
     }
 
     $pdo = getDbConnection();
+    $currentSession = session_id();
 
-    // Get all entries (no date filter)
+    // Get entries for current session only (user isolation)
     $stmt = $pdo->prepare("
         SELECT id, title, user_description, entry_date, ai_enhanced_description
         FROM ojt_entries
+        WHERE session_id = :session_id OR session_id IS NULL
         ORDER BY entry_date ASC
     ");
-
-    $stmt->execute();
+    $stmt->execute([':session_id' => $currentSession]);
 
     $entries = $stmt->fetchAll();
 
