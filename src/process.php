@@ -219,25 +219,42 @@ function createOJTEntry() {
 
     $pdo = getDbConnection();
     $currentSession = session_id();
+    
+    // Check if session_id column exists (migration check)
+    $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
+    $hasSessionIsolation = in_array('session_id', $tableInfo);
 
     try {
-        // Create the OJT entry with session_id (user isolation)
-        $stmt = $pdo->prepare("
-            INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at, session_id)
-            VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at, :session_id)
-        ");
+        // Create the OJT entry with session_id (user isolation) if column exists
+        if ($hasSessionIsolation) {
+            $stmt = $pdo->prepare("
+                INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at, session_id)
+                VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at, :session_id)
+            ");
 
-        // Generate initial enhanced description (will be updated after AI analysis)
-        $initialEnhanced = $userDescription ?: 'Image analysis pending...';
+            $stmt->execute([
+                ':title' => $title,
+                ':user_desc' => $userDescription,
+                ':entry_date' => $entryDate,
+                ':ai_desc' => $initialEnhanced,
+                ':created_at' => date('Y-m-d H:i:s'),
+                ':session_id' => $currentSession
+            ]);
+        } else {
+            // Fallback: Insert without session_id (migration not run yet)
+            $stmt = $pdo->prepare("
+                INSERT INTO ojt_entries (title, user_description, entry_date, ai_enhanced_description, created_at)
+                VALUES (:title, :user_desc, :entry_date, :ai_desc, :created_at)
+            ");
 
-        $stmt->execute([
-            ':title' => $title,
-            ':user_desc' => $userDescription,
-            ':entry_date' => $entryDate,
-            ':ai_desc' => $initialEnhanced,
-            ':created_at' => date('Y-m-d H:i:s'),
-            ':session_id' => $currentSession
-        ]);
+            $stmt->execute([
+                ':title' => $title,
+                ':user_desc' => $userDescription,
+                ':entry_date' => $entryDate,
+                ':ai_desc' => $initialEnhanced,
+                ':created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
 
         $entryId = $pdo->lastInsertId();
         Logger::info('Entry created', ['entry_id' => $entryId, 'title' => $title, 'session' => $currentSession]);
@@ -288,19 +305,35 @@ function createOJTEntry() {
             }
 
             // Save to database
-            $stmt = $pdo->prepare("
-                INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at, session_id)
-                VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at, :session_id)
-            ");
+            if ($hasSessionIsolation) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at, session_id)
+                    VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at, :session_id)
+                ");
 
-            $stmt->execute([
-                ':entry_id' => $entryId,
-                ':image_path' => $imagePath,
-                ':order' => $i,
-                ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
-                ':created_at' => date('Y-m-d H:i:s'),
-                ':session_id' => $currentSession
-            ]);
+                $stmt->execute([
+                    ':entry_id' => $entryId,
+                    ':image_path' => $imagePath,
+                    ':order' => $i,
+                    ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
+                    ':created_at' => date('Y-m-d H:i:s'),
+                    ':session_id' => $currentSession
+                ]);
+            } else {
+                // Fallback: Insert without session_id
+                $stmt = $pdo->prepare("
+                    INSERT INTO entry_images (entry_id, image_path, image_order, ai_description, created_at)
+                    VALUES (:entry_id, :image_path, :order, :ai_desc, :created_at)
+                ");
+
+                $stmt->execute([
+                    ':entry_id' => $entryId,
+                    ':image_path' => $imagePath,
+                    ':order' => $i,
+                    ':ai_desc' => is_string($aiDescription) ? $aiDescription : 'Analysis unavailable',
+                    ':created_at' => date('Y-m-d H:i:s')
+                ]);
+            }
 
             $imageResults[] = [
                 'success' => true,
@@ -595,29 +628,53 @@ function getWeeklyReport() {
     $pdo = getDbConnection();
     $currentSession = session_id();
 
-    // Get entries for current session only (user isolation)
-    $stmt = $pdo->prepare("
-        SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
-        FROM ojt_entries e
-        WHERE e.session_id = :session_id OR e.session_id IS NULL
-        ORDER BY e.entry_date DESC, e.created_at DESC
-    ");
-    $stmt->execute([':session_id' => $currentSession]);
+    // Check if session_id column exists (migration check)
+    $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
+    $hasSessionIsolation = in_array('session_id', $tableInfo);
+
+    if ($hasSessionIsolation) {
+        // Get entries for current session only (user isolation)
+        $stmt = $pdo->prepare("
+            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
+            FROM ojt_entries e
+            WHERE e.session_id = :session_id OR e.session_id IS NULL
+            ORDER BY e.entry_date DESC, e.created_at DESC
+        ");
+        $stmt->execute([':session_id' => $currentSession]);
+    } else {
+        // Fallback: Get all entries (no isolation - migration not run yet)
+        $stmt = $pdo->prepare("
+            SELECT e.id, e.title, e.user_description, e.entry_date, e.ai_enhanced_description, e.created_at
+            FROM ojt_entries e
+            ORDER BY e.entry_date DESC, e.created_at DESC
+        ");
+        $stmt->execute();
+    }
 
     $entries = $stmt->fetchAll();
 
     // Get images for each entry
     foreach ($entries as &$entry) {
-        $stmt = $pdo->prepare("
-            SELECT id, image_path, image_order, ai_description
-            FROM entry_images
-            WHERE entry_id = :entry_id AND (session_id = :session_id OR session_id IS NULL)
-            ORDER BY image_order ASC
-        ");
-        $stmt->execute([
-            ':entry_id' => $entry['id'],
-            ':session_id' => $currentSession
-        ]);
+        if ($hasSessionIsolation) {
+            $stmt = $pdo->prepare("
+                SELECT id, image_path, image_order, ai_description
+                FROM entry_images
+                WHERE entry_id = :entry_id AND (session_id = :session_id OR session_id IS NULL)
+                ORDER BY image_order ASC
+            ");
+            $stmt->execute([
+                ':entry_id' => $entry['id'],
+                ':session_id' => $currentSession
+            ]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT id, image_path, image_order, ai_description
+                FROM entry_images
+                WHERE entry_id = :entry_id
+                ORDER BY image_order ASC
+            ");
+            $stmt->execute([':entry_id' => $entry['id']]);
+        }
         $entry['images'] = $stmt->fetchAll();
     }
 
