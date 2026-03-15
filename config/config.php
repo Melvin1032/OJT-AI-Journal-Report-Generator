@@ -118,46 +118,47 @@ function getDbConnection() {
  * @param PDO $pdo Database connection
  */
 function initializeDatabase($pdo) {
-    // Create OJT entries table
+    // Create users table for authentication
+    $sql = "CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )";
+    $pdo->exec($sql);
+
+    // Create OJT entries table with user_id for isolation
     $sql = "CREATE TABLE IF NOT EXISTS ojt_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT NULL,
         title TEXT NOT NULL,
         user_description TEXT,
         entry_date DATE NOT NULL,
         ai_enhanced_description TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )";
-
     $pdo->exec($sql);
 
-    // Create entry images table
+    // Create entry images table with user_id for isolation
     $sql = "CREATE TABLE IF NOT EXISTS entry_images (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT NULL,
         entry_id INTEGER NOT NULL,
         image_path TEXT NOT NULL,
         image_order INTEGER DEFAULT 0,
         ai_description TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (entry_id) REFERENCES ojt_entries(id) ON DELETE CASCADE
+        FOREIGN KEY (entry_id) REFERENCES ojt_entries(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )";
-
     $pdo->exec($sql);
 
-    // Create indexes
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_date ON ojt_entries(entry_date)");
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_images_entry_id ON entry_images(entry_id)");
-
-    // Keep old table for backward compatibility (optional)
-    $pdo->exec("CREATE TABLE IF NOT EXISTS journal_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        image_path TEXT NOT NULL,
-        ai_description TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )");
-
-    // Create student info table for OJT report
+    // Create student info table for OJT report with user_id
     $sql = "CREATE TABLE IF NOT EXISTS student_info (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT NULL,
         student_name TEXT NOT NULL,
         company_name TEXT NOT NULL,
         company_address TEXT,
@@ -166,13 +167,46 @@ function initializeDatabase($pdo) {
         purpose_role TEXT,
         conclusion TEXT,
         recommendations TEXT,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )";
-
     $pdo->exec($sql);
 
-    // Insert default row if not exists
-    $pdo->exec("INSERT OR IGNORE INTO student_info (id, student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations) 
+    // Create user_api_keys table for storing encrypted API keys
+    $sql = "CREATE TABLE IF NOT EXISTS user_api_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER DEFAULT NULL,
+        session_id TEXT DEFAULT NULL,
+        openrouter_key TEXT NOT NULL,
+        gemini_key TEXT NOT NULL,
+        groq_key TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )";
+    $pdo->exec($sql);
+
+    // Create users table for authentication (if not exists from earlier)
+    $sql = "CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )";
+    $pdo->exec($sql);
+
+    // Create indexes for better performance
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ojt_entries_user_id ON ojt_entries(user_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_ojt_entries_entry_date ON ojt_entries(entry_date)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_images_entry_id ON entry_images(entry_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_entry_images_user_id ON entry_images(user_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_student_info_user_id ON student_info(user_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_user_id ON user_api_keys(user_id)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_user_api_keys_session_id ON user_api_keys(session_id)");
+
+    // Insert default student info row if not exists
+    $pdo->exec("INSERT OR IGNORE INTO student_info (id, student_name, company_name, company_address, student_role, introduction, purpose_role, conclusion, recommendations)
                 VALUES (1, '', '', '', '', '', '', '', '')");
 }
 

@@ -658,7 +658,17 @@ function getWeeklyReport() {
             ORDER BY image_order ASC
         ");
         $stmt->execute([$entry['id'], $currentUserId]);
-        $entry['images'] = $stmt->fetchAll();
+        $images = $stmt->fetchAll();
+        
+        // Convert image paths to use image server (for InfinityFree compatibility)
+        foreach ($images as &$image) {
+            // Extract just the filename from the path
+            $filename = basename($image['image_path']);
+            // Use image server URL
+            $image['image_url'] = 'src/serve-image.php?file=' . urlencode($filename);
+        }
+        
+        $entry['images'] = $images;
     }
 
     // Get date range from entries

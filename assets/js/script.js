@@ -79,42 +79,67 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function initializeEventListeners() {
     // Form submission
-    ojtForm.addEventListener('submit', handleSubmit);
+    if (ojtForm) {
+        ojtForm.addEventListener('submit', handleSubmit);
+    }
 
-    // Upload area click
-    uploadArea.addEventListener('click', (e) => {
-        if (e.target !== submitBtn && e.target !== clearBtn && !e.target.closest('.remove-btn')) {
-            imageInput.click();
-        }
-    });
+    // Upload area click - only trigger file input on direct click, not on buttons or remove actions
+    if (uploadArea) {
+        uploadArea.addEventListener('click', (e) => {
+            // Prevent triggering if clicking on interactive elements
+            if (e.target.tagName === 'BUTTON' || e.target.closest('.remove-btn') || e.target.closest('.btn')) {
+                return;
+            }
+            // Only trigger if clicking directly on the upload area or its non-interactive children
+            if (e.target === uploadArea || e.target.closest('.upload-placeholder') || e.target.closest('.preview-container')) {
+                imageInput.click();
+            }
+        });
+
+        // Prevent form submission when clicking on upload area
+        uploadArea.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
 
     // File input change
-    imageInput.addEventListener('change', handleFileSelect);
+    if (imageInput) {
+        imageInput.addEventListener('change', handleFileSelect);
+    }
 
     // Drag and drop
-    uploadArea.addEventListener('dragover', handleDragOver);
-    uploadArea.addEventListener('dragleave', handleDragLeave);
-    uploadArea.addEventListener('drop', handleDrop);
+    if (uploadArea) {
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+    }
 
     // Clear button
-    clearBtn.addEventListener('click', clearForm);
+    if (clearBtn) {
+        clearBtn.addEventListener('click', clearForm);
+    }
 
     // Refresh button
-    refreshBtn.addEventListener('click', loadWeeklyReport);
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', loadWeeklyReport);
+    }
 
     // Narrative button
-    narrativeBtn.addEventListener('click', handleGenerateNarrative);
+    if (narrativeBtn) {
+        narrativeBtn.addEventListener('click', handleGenerateNarrative);
+    }
 
     // Close narrative button
-    closeNarrativeBtn.addEventListener('click', () => {
-        narrativeContainer.classList.remove('show');
-    });
-
-    // Refresh button
-    refreshBtn.addEventListener('click', loadWeeklyReport);
+    if (closeNarrativeBtn) {
+        closeNarrativeBtn.addEventListener('click', () => {
+            narrativeContainer.classList.remove('show');
+        });
+    }
 
     // Theme toggle
-    themeToggle.addEventListener('click', toggleTheme);
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
 
     // Confirmation modal buttons
     initializeConfirmationModal();
@@ -180,6 +205,12 @@ async function handleSubmit(e) {
     e.stopPropagation(); // Prevent any bubbling
 
     console.log('Form submit triggered');
+
+    // Prevent double submission
+    if (submitBtn && submitBtn.classList.contains('loading')) {
+        console.log('Form already submitting, ignoring...');
+        return;
+    }
 
     const title = entryTitle.value.trim();
     const description = entryDescription.value.trim();
@@ -442,9 +473,11 @@ function createEntryCard(entry) {
     let galleryHtml = '';
     if (entry.images && entry.images.length > 0) {
         galleryHtml = `<div class="ojt-entry-gallery">
-            ${entry.images.map(img => `
-                <img src="${img.image_path}" alt="Entry image" data-full="${img.image_path}" title="Click to enlarge">
-            `).join('')}
+            ${entry.images.map(img => {
+                // Use image_url if available (for InfinityFree), otherwise fallback to image_path
+                const imgSrc = img.image_url || img.image_path;
+                return `<img src="${imgSrc}" alt="Entry image" data-full="${imgSrc}" title="Click to enlarge">`;
+            }).join('')}
         </div>`;
     }
 

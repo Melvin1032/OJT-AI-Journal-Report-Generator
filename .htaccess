@@ -3,13 +3,25 @@
 
 # Enable CSP to block InfinityFree's injected scripts
 <IfModule mod_headers.c>
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://*.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://api.groq.com https://openrouter.ai https://generativelanguage.googleapis.com https://*.infinityfree.net"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.googleapis.com https://*.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://*.googleapis.com; img-src 'self' data: blob: https: *; font-src 'self' https://*.gstatic.com; connect-src 'self' https://*.googleapis.com https://api.groq.com https://openrouter.ai https://generativelanguage.googleapis.com https://*.infinityfree.net"
 </IfModule>
 
 # Custom error pages (prevent InfinityFree's injected error pages)
 ErrorDocument 403 /errors/403.php
 ErrorDocument 404 /errors/404.php
 ErrorDocument 500 /errors/500.php
+
+# Allow image files from storage directory
+<Directory "storage/uploads">
+    <IfModule mod_headers.c>
+        Header set Access-Control-Allow-Origin "*"
+        Header set X-Content-Type-Options "nosniff"
+    </IfModule>
+    <FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
+        Order Allow,Deny
+        Allow from all
+    </FilesMatch>
+</Directory>
 
 # Protect sensitive files
 <Files ".env">

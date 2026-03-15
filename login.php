@@ -1,537 +1,148 @@
 <?php
 session_start();
-
-if (isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
-}
-
+if (isset($_SESSION['user_id'])) { header('Location: index.php'); exit; }
 require_once 'config/config.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login - OJT Journal</title>
-    <link rel="stylesheet" href="assets/css/style.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea,#764ba2);padding:1rem;position:relative;overflow:hidden}
+        body::before,body::after{content:'';position:absolute;border-radius:50%;background:rgba(255,255,255,0.1);animation:float 20s infinite}
+        body::before{width:300px;height:300px;top:-100px;right:-100px}
+        body::after{width:200px;height:200px;bottom:-50px;left:-50px;animation-delay:-5s}
+        @keyframes float{0%,100%{transform:translate(0,0) rotate(0deg)}25%{transform:translate(50px,50px) rotate(90deg)}50%{transform:translate(0,100px) rotate(180deg)}75%{transform:translate(-50px,50px) rotate(270deg)}}
+        .auth-container{width:100%;max-width:380px;position:relative;z-index:10}
+        .auth-card{background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);border-radius:16px;padding:2rem 1.5rem;box-shadow:0 10px 40px rgba(0,0,0,0.2)}
+        .auth-header{text-align:center;margin-bottom:1.5rem}
+        .auth-logo{font-size:3rem;margin-bottom:0.5rem;display:block}
+        .auth-header h1{color:#1a202c;font-size:1.5rem;font-weight:700;margin-bottom:0.25rem}
+        .auth-header p{color:#718096;font-size:0.875rem}
+        .form-group{margin-bottom:1rem}
+        .form-group label{display:block;color:#2d3748;font-weight:600;margin-bottom:0.35rem;font-size:0.875rem}
+        .input-wrapper{position:relative}
+        .input-wrapper input{width:100%;padding:0.75rem 0.75rem 0.75rem 2.5rem;border:2px solid #e2e8f0;border-radius:8px;background:#f7fafc;color:#2d3748;font-size:16px;transition:all 0.2s;-webkit-appearance:none}
+        .input-wrapper input:focus{outline:none;border-color:#667eea;background:white;box-shadow:0 0 0 3px rgba(102,126,234,0.1)}
+        .input-icon{position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);color:#a0aec0;width:20px;height:20px}
+        .password-toggle{position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:#a0aec0;cursor:pointer;padding:0.25rem}
+        .password-toggle:hover{color:#667eea}
+        .submit-btn{width:100%;padding:0.875rem;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:all 0.2s;margin-top:1rem;-webkit-appearance:none}
+        .submit-btn:hover{transform:translateY(-2px);box-shadow:0 8px 16px rgba(102,126,234,0.3)}
+        .submit-btn:active{transform:translateY(0)}
+        .submit-btn:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+        .error-message,.success-message{padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:0.875rem;display:none;word-wrap:break-word}
+        .error-message{background:#fed7d7;color:#c53030;border:1px solid #fc8181}
+        .success-message{background:#c6f6d5;color:#22543d;border:1px solid #68d391}
+        .error-message.show,.success-message.show{display:block}
+        .auth-links{text-align:center;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid #e2e8f0}
+        .auth-links p{color:#718096;font-size:0.875rem}
+        .auth-links a{color:#667eea;text-decoration:none;font-weight:600;transition:color 0.2s}
+        .auth-links a:hover{color:#764ba2;text-decoration:underline}
+        .app-name{position:fixed;top:1rem;right:1rem;color:rgba(255,255,255,0.95);font-size:0.75rem;font-weight:600;z-index:20;text-align:right;max-width:150px;line-height:1.3}
+        .app-name span{display:block;font-size:0.65rem;opacity:0.85;font-weight:400}
+        .back-home{position:fixed;top:1rem;left:1rem;color:rgba(255,255,255,0.95);text-decoration:none;font-size:0.8rem;font-weight:500;display:flex;align-items:center;gap:0.35rem;transition:all 0.2s;z-index:20;background:rgba(0,0,0,0.15);padding:0.4rem 0.65rem;border-radius:8px}
+        .back-home:hover{color:white;background:rgba(0,0,0,0.25)}
+        .developer-credit{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.9);font-size:0.7rem;display:flex;flex-direction:column;align-items:center;gap:0.35rem;z-index:20;background:rgba(0,0,0,0.25);padding:0.5rem 0.75rem;border-radius:12px;backdrop-filter:blur(8px);max-width:90%;text-align:center}
+        .developer-credit a{color:inherit;text-decoration:none;display:flex;align-items:center;gap:0.35rem;font-weight:600;font-size:0.75rem}
+        .developer-credit a:hover{text-decoration:underline}
+        .spinner{display:none;width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.6s linear infinite;margin:0 auto}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .submit-btn.loading .btn-text{display:none}
+        .submit-btn.loading .spinner{display:block}
+        @media(max-width:768px){
+            .app-name{top:0.75rem;right:0.75rem;font-size:0.7rem;max-width:120px}
+            .app-name span{font-size:0.6rem}
+            .back-home{top:0.75rem;left:0.75rem;font-size:0.75rem;padding:0.35rem 0.5rem}
+            .back-home svg{width:16px;height:16px}
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 2rem;
-            position: relative;
-            overflow: hidden;
+        @media(max-width:480px){
+            body{padding:0.75rem;flex-direction:column;justify-content:flex-start;padding-top:3.5rem;padding-bottom:8rem}
+            body::before,body::after{display:none}
+            .auth-container{max-width:100%}
+            .auth-card{padding:1.5rem 1.1rem;border-radius:12px}
+            .auth-logo{font-size:2.5rem}
+            .auth-header h1{font-size:1.25rem}
+            .auth-header p{font-size:0.8rem}
+            .form-group label{font-size:0.8rem}
+            .input-wrapper input{padding:0.7rem 0.7rem 0.7rem 2.3rem;font-size:16px}
+            .input-icon{left:0.7rem;width:18px;height:18px}
+            .password-toggle{right:0.7rem}
+            .submit-btn{padding:0.8rem;font-size:0.95rem}
+            .app-name{position:absolute;top:auto;bottom:100%;right:0;left:0;text-align:center;margin-bottom:0.75rem;max-width:none}
+            .back-home{position:absolute;top:auto;bottom:100%;left:0;font-size:0.75rem;margin-bottom:0.75rem}
+            .developer-credit{position:fixed;bottom:0.5rem;left:0.5rem;right:0.5rem;transform:none;flex-direction:row;justify-content:center;padding:0.4rem 0.6rem;font-size:0.65rem}
+            .developer-credit a{font-size:0.65rem}
+            .developer-credit svg{width:12px;height:12px}
         }
-
-        /* Animated background shapes */
-        body::before, body::after {
-            content: '';
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            animation: float 20s infinite;
-        }
-
-        body::before {
-            width: 400px;
-            height: 400px;
-            top: -100px;
-            right: -100px;
-        }
-
-        body::after {
-            width: 300px;
-            height: 300px;
-            bottom: -50px;
-            left: -50px;
-            animation-delay: -5s;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            25% { transform: translate(50px, 50px) rotate(90deg); }
-            50% { transform: translate(0, 100px) rotate(180deg); }
-            75% { transform: translate(-50px, 50px) rotate(270deg); }
-        }
-
-        .auth-container {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            max-width: 450px;
-        }
-
-        .auth-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 24px;
-            padding: 3rem 2.5rem;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideUp 0.6s ease-out;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .auth-header {
-            text-align: center;
-            margin-bottom: 2.5rem;
-        }
-
-        .auth-logo {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            display: block;
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .auth-header h1 {
-            color: #1a202c;
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .auth-header p {
-            color: #718096;
-            font-size: 1rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-
-        .form-group label {
-            display: block;
-            color: #2d3748;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            font-size: 0.95rem;
-        }
-
-        .input-wrapper {
-            position: relative;
-        }
-
-        .input-wrapper input {
-            width: 100%;
-            padding: 0.875rem 1rem 0.875rem 3rem;
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            background: #f7fafc;
-            color: #2d3748;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .input-wrapper input:focus {
-            outline: none;
-            border-color: #667eea;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-        }
-
-        .input-icon {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #a0aec0;
-            pointer-events: none;
-            transition: color 0.3s;
-        }
-
-        .input-wrapper input:focus + .input-icon {
-            color: #667eea;
-        }
-
-        .password-toggle {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #a0aec0;
-            cursor: pointer;
-            padding: 0.25rem;
-            transition: color 0.3s;
-        }
-
-        .password-toggle:hover {
-            color: #667eea;
-        }
-
-        .submit-btn {
-            width: 100%;
-            padding: 1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 1.5rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .submit-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .submit-btn:hover::before {
-            left: 100%;
-        }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-
-        .submit-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .spinner {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .submit-btn.loading .btn-text {
-            display: none;
-        }
-
-        .submit-btn.loading .spinner {
-            display: block;
-        }
-
-        .error-message, .success-message {
-            padding: 0.875rem 1rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-            font-size: 0.9rem;
-            display: none;
-            animation: shake 0.5s;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-10px); }
-            75% { transform: translateX(10px); }
-        }
-
-        .error-message {
-            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
-            color: #c53030;
-            border: 1px solid #fc8181;
-        }
-
-        .success-message {
-            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
-            color: #22543d;
-            border: 1px solid #68d391;
-        }
-
-        .error-message.show, .success-message.show {
-            display: block;
-        }
-
-        .auth-links {
-            text-align: center;
-            margin-top: 1.5rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        .auth-links p {
-            color: #718096;
-            font-size: 0.95rem;
-        }
-
-        .auth-links a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.3s;
-        }
-
-        .auth-links a:hover {
-            color: #764ba2;
-            text-decoration: underline;
-        }
-
-        .back-home {
-            position: fixed;
-            top: 1.5rem;
-            left: 1.5rem;
-            color: rgba(255, 255, 255, 0.9);
-            text-decoration: none;
-            font-size: 0.95rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.3s;
-            z-index: 20;
-        }
-
-        .back-home:hover {
-            color: white;
-            transform: translateX(-5px);
-        }
-
-        .info-box {
-            background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%);
-            border: 1px solid #63b3ed;
-            color: #2c5282;
-            padding: 1rem;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-            font-size: 0.9rem;
-            animation: slideDown 0.5s ease-out;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .info-box p {
-            margin: 0;
-        }
-
-        /* Responsive */
-        @media (max-width: 480px) {
-            body {
-                padding: 1rem;
-            }
-
-            .auth-card {
-                padding: 2rem 1.5rem;
-            }
-
-            .auth-header h1 {
-                font-size: 1.75rem;
-            }
-
-            .back-home {
-                position: static;
-                margin-bottom: 1.5rem;
-                justify-content: center;
-            }
+        @media(max-width:360px){
+            .auth-card{padding:1.25rem 0.9rem}
+            .auth-header h1{font-size:1.15rem}
+            .input-wrapper input{padding:0.65rem 0.65rem 0.65rem 2.2rem}
+            .submit-btn{padding:0.75rem;font-size:0.9rem}
         }
     </style>
 </head>
 <body>
-    <a href="index.php" class="back-home">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-            <line x1="19" y1="12" x2="5" y2="12"/>
-            <polyline points="12 19 5 12 12 5"/>
-        </svg>
-        Back to Home
-    </a>
-
+    <div class="app-name">📔 OJT Journal<span>Report Generator</span></div>
+    <a href="index.php" class="back-home">← Back</a>
     <div class="auth-container">
         <div class="auth-card">
             <div class="auth-header">
                 <span class="auth-logo">🔑</span>
                 <h1>Welcome Back</h1>
-                <p>Sign in to continue to your journal</p>
+                <p>Sign in to your journal</p>
             </div>
-
             <div class="error-message" id="errorMessage"></div>
             <div class="success-message" id="successMessage"></div>
-
             <?php if (isset($_GET['registered'])): ?>
-            <div class="info-box">
-                <p>✅ <strong>Account created!</strong> Please sign in with your credentials.</p>
-            </div>
+            <div style="background:#bee3f8;border:1px solid #63b3ed;color:#2c5282;padding:0.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:0.875rem">✅ <strong>Account created!</strong> Please sign in.</div>
             <?php endif; ?>
-
             <form id="loginForm" novalidate>
                 <div class="form-group">
                     <label for="username">Username or Email</label>
                     <div class="input-wrapper">
-                        <input type="text" id="username" name="username" required
-                               placeholder="Enter your username or email"
-                               autocomplete="username">
-                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                            <circle cx="12" cy="7" r="4"/>
-                        </svg>
+                        <input type="text" id="username" name="username" required placeholder="Enter username or email" autocomplete="username">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </div>
                 </div>
-
                 <div class="form-group">
                     <label for="password">Password</label>
                     <div class="input-wrapper">
-                        <input type="password" id="password" name="password" required
-                               placeholder="Enter your password"
-                               autocomplete="current-password">
-                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Toggle password visibility">
-                            <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                        </button>
+                        <input type="password" id="password" name="password" required placeholder="Enter password" autocomplete="current-password">
+                        <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <button type="button" class="password-toggle" onclick="togglePassword()" aria-label="Toggle password visibility">👁</button>
                     </div>
                 </div>
-
-                <button type="submit" class="submit-btn" id="submitBtn">
-                    <span class="btn-text">Sign In</span>
-                    <span class="spinner"></span>
-                </button>
+                <button type="submit" class="submit-btn" id="submitBtn"><span class="btn-text">Sign In</span><span class="spinner"></span></button>
             </form>
-
-            <div class="auth-links">
-                <p>Don't have an account? <a href="register.php">Sign Up</a></p>
-            </div>
+            <div class="auth-links"><p>Don't have an account? <a href="register.php">Sign Up</a></p></div>
         </div>
     </div>
-
+    <div class="developer-credit">
+        <span>OJT Journal by <strong>John Melvin R. Macabeo</strong></span>
+        <a href="https://github.com/Melvin1032/OJT-AI-Journal-Report-Generator" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            GitHub
+        </a>
+    </div>
     <script>
-        // Toggle password visibility
-        function togglePassword() {
-            const passwordInput = document.getElementById('password');
-            const eyeIcon = document.getElementById('eyeIcon');
-            
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
-            } else {
-                passwordInput.type = 'password';
-                eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-            }
-        }
-
-        // Form submission
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        function togglePassword(){const p=document.getElementById('password'),e=p.nextElementSibling.nextElementSibling;p.type=p.type==='password'?'text':'password';e.textContent=p.type==='password'?'👁':'🙈';}
+        document.getElementById('loginForm').addEventListener('submit',async(e)=>{
             e.preventDefault();
-
-            const submitBtn = document.getElementById('submitBtn');
-            const errorMessage = document.getElementById('errorMessage');
-            const successMessage = document.getElementById('successMessage');
-
-            // Hide previous messages
-            errorMessage.className = 'error-message';
-            successMessage.className = 'success-message';
-
-            const formData = {
-                username: document.getElementById('username').value.trim(),
-                password: document.getElementById('password').value
-            };
-
-            // Client-side validation
-            if (!formData.username || !formData.password) {
-                errorMessage.textContent = 'Please fill in all fields';
-                errorMessage.className = 'error-message show';
-                return;
-            }
-
-            submitBtn.classList.add('loading');
-            submitBtn.disabled = true;
-
-            try {
-                const response = await fetch('public/login.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(formData)
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    successMessage.textContent = 'Login successful! Redirecting...';
-                    successMessage.className = 'success-message show';
-                    
-                    setTimeout(() => {
-                        window.location.href = 'index.php';
-                    }, 1000);
-                } else {
-                    errorMessage.textContent = data.error || 'Login failed. Please check your credentials.';
-                    errorMessage.className = 'error-message show';
-                    
-                    submitBtn.classList.remove('loading');
-                    submitBtn.disabled = false;
-                }
-            } catch (error) {
-                errorMessage.textContent = 'Network error. Please try again.';
-                errorMessage.className = 'error-message show';
-                
-                submitBtn.classList.remove('loading');
-                submitBtn.disabled = false;
-            }
-        });
-
-        // Add input animation
-        document.querySelectorAll('input').forEach(input => {
-            input.addEventListener('focus', () => {
-                input.parentElement.parentElement.classList.add('focused');
-            });
-            
-            input.addEventListener('blur', () => {
-                input.parentElement.parentElement.classList.remove('focused');
-            });
+            const btn=document.getElementById('submitBtn'),err=document.getElementById('errorMessage'),suc=document.getElementById('successMessage');
+            err.className='error-message';suc.className='success-message';
+            const data={username:document.getElementById('username').value.trim(),password:document.getElementById('password').value};
+            if(!data.username||!data.password){err.textContent='Please fill in all fields';err.className='error-message show';return;}
+            btn.classList.add('loading');btn.disabled=true;
+            try{
+                const r=await fetch('public/login.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}),d=await r.json();
+                if(d.success){suc.textContent='Login successful! Redirecting...';suc.className='success-message show';setTimeout(()=>{window.location.href=d.api_keys_configured?'index.php':'setup.php';},1000);}
+                else{err.textContent=d.error||'Login failed';err.className='error-message show';btn.classList.remove('loading');btn.disabled=false;}
+            }catch(err){err.textContent='Network error';err.className='error-message show';btn.classList.remove('loading');btn.disabled=false;}
         });
     </script>
 </body>

@@ -16,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
     $input = json_decode(file_get_contents('php://input'), true);
-    
+
     if (!$input) {
         http_response_code(400);
         echo json_encode(['success' => false, 'error' => 'Invalid request']);
@@ -29,7 +29,7 @@ try {
     if (empty($username)) {
         throw new Exception('Username or email is required');
     }
-    
+
     if (empty($password)) {
         throw new Exception('Password is required');
     }
@@ -52,17 +52,29 @@ try {
     // Set session
     $_SESSION['user_id'] = $user['id'];
     $_SESSION['username'] = $user['username'];
-    
-    // Check for API keys
+
+    // Restore API keys from database to session
     $userKeys = getUserApiKeys();
-    if ($userKeys && !empty($userKeys['openrouter'])) {
-        $_SESSION['api_keys_configured'] = true;
+    if ($userKeys) {
+        $_SESSION['api_keys'] = $userKeys;
+        // Check if at least OpenRouter key is configured
+        if (!empty($userKeys['openrouter'])) {
+            $_SESSION['api_keys_configured'] = true;
+        } else {
+            $_SESSION['api_keys_configured'] = false;
+        }
+    } else {
+        // No API keys found - user needs to configure them
+        $_SESSION['api_keys_configured'] = false;
     }
-    
+
     session_regenerate_id(true);
 
-    error_log("User logged in: {$user['username']}");
-    echo json_encode(['success' => true]);
+    error_log("User logged in: {$user['username']} (ID: {$user['id']})");
+    echo json_encode([
+        'success' => true,
+        'api_keys_configured' => isset($_SESSION['api_keys_configured']) && $_SESSION['api_keys_configured'] === true
+    ]);
 
 } catch (Exception $e) {
     error_log('Login error: ' . $e->getMessage());
