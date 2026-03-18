@@ -159,17 +159,17 @@ abstract class BaseAgent {
     /**
      * Call AI API for reasoning/planning
      */
-    protected function callAI(string $prompt, string $systemMessage = ''): string {
+    protected function callAI(string $prompt, string $systemMessage = '', array $options = []): string {
         // Build messages array
         $messages = [];
         if (!empty($systemMessage)) {
             $messages[] = ['role' => 'system', 'content' => $systemMessage];
         }
         $messages[] = ['role' => 'user', 'content' => $prompt];
-        
-        // Use user-specific API keys via helper
+
+        // Use user-specific API keys via helper with options
         try {
-            return callAIWithUserKeys($messages);
+            return callAIWithUserKeys($messages, '', $options);
         } catch (Exception $e) {
             Logger::error('AI call failed in BaseAgent', ['error' => $e->getMessage()]);
             throw $e;

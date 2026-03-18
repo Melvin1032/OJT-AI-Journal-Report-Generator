@@ -803,6 +803,7 @@ function updateDescription() {
 
 /**
  * Generate AI-powered narrative report for all entries
+ * Enhanced for comprehensive day-by-day documentation
  */
 function generateNarrativeReport() {
     // Check if user has API keys configured
@@ -813,7 +814,7 @@ function generateNarrativeReport() {
 
     $pdo = getDbConnection();
     $currentSession = session_id();
-    
+
     // Check if session_id column exists (migration check)
     $tableInfo = $pdo->query("PRAGMA table_info(ojt_entries)")->fetchAll(PDO::FETCH_COLUMN);
     $hasSessionIsolation = in_array('session_id', $tableInfo);
@@ -843,38 +844,106 @@ function generateNarrativeReport() {
         jsonResponse(['error' => 'No entries found'], 404);
     }
 
-    // Build concise context from entries
+    // Build detailed context from entries with full descriptions
     $entriesContext = [];
-    foreach ($entries as $entry) {
-        $date = date('M j', strtotime($entry['entry_date']));
-        $desc = $entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description';
-        $entriesContext[] = "{$date}: {$entry['title']} - " . substr($desc, 0, 150);
+    $dayByDayEntries = [];
+    
+    foreach ($entries as $index => $entry) {
+        $date = date('l, F j, Y', strtotime($entry['entry_date']));
+        $dayNumber = $index + 1;
+        $fullDesc = $entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description';
+        
+        $dayByDayEntries[] = [
+            'day' => $dayNumber,
+            'date' => $date,
+            'title' => $entry['title'],
+            'description' => $fullDesc
+        ];
+        
+        $entriesContext[] = "[Day {$dayNumber}] {$date} - {$entry['title']}\nDetails: {$fullDesc}";
     }
 
-    $contextText = implode("\n", $entriesContext);
+    $contextText = implode("\n\n", $entriesContext);
+    $totalDays = count($entries);
 
-    // Optimized prompt: concise, direct
-    $prompt = "Write a 2-paragraph OJT weekly narrative report:\n";
-    $prompt .= "Paragraph 1: Summarize activities and skills developed\n";
-    $prompt .= "Paragraph 2: Challenges overcome and professional growth\n\n";
-    $prompt .= "Entries:\n{$contextText}\n\n";
-    $prompt .= "Professional tone, 100-150 words.";
+    // Get date range
+    $startDate = date('F j, Y', strtotime($entries[0]['entry_date']));
+    $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
+
+    // Enhanced prompt for comprehensive day-by-day narrative
+    $prompt = "You are a professional technical writer specializing in OJT (On-the-Job Training) documentation.\n\n";
+    $prompt .= "TASK: Generate a comprehensive, well-documented OJT Narrative Report based on the journal entries below.\n\n";
+    $prompt .= "REPORT STRUCTURE:\n\n";
+    $prompt .= "1. EXECUTIVE SUMMARY (1 paragraph, 80-120 words)\n";
+    $prompt .= "   - Brief overview of the entire OJT period\n";
+    $prompt .= "   - Main focus areas and key accomplishments\n";
+    $prompt .= "   - Overall impact on professional development\n\n";
+    $prompt .= "2. WEEKLY PROGRESSION (detailed section)\n";
+    $prompt .= "   - Group entries by week (assume 5 working days per week)\n";
+    $prompt .= "   - For each week, write 2-3 paragraphs covering:\n";
+    $prompt .= "     • Week number and date range\n";
+    $prompt .= "     • Primary activities and tasks undertaken\n";
+    $prompt .= "     • Skills developed and competencies gained\n";
+    $prompt .= "     • Challenges encountered and solutions applied\n";
+    $prompt .= "     • Notable achievements or milestones\n\n";
+    $prompt .= "3. DAY-BY-DAY HIGHLIGHTS (comprehensive section)\n";
+    $prompt .= "   - For each day, provide a detailed paragraph (100-150 words) covering:\n";
+    $prompt .= "     • Specific tasks performed and methodologies used\n";
+    $prompt .= "     • Technical skills or tools applied\n";
+    $prompt .= "     • Learning outcomes and insights gained\n";
+    $prompt .= "     • Connection to previous days' work (show progression)\n";
+    $prompt .= "   - Write in chronological order\n";
+    $prompt .= "   - Use transitional phrases between days for flow\n\n";
+    $prompt .= "4. SKILLS AND COMPETENCIES DEVELOPED (analytical section)\n";
+    $prompt .= "   - Categorize skills into: Technical, Soft Skills, and Professional\n";
+    $prompt .= "   - Provide specific examples from the entries for each skill\n";
+    $prompt .= "   - Explain the progression from beginner to competent level\n\n";
+    $prompt .= "5. CHALLENGES AND SOLUTIONS (reflective section)\n";
+    $prompt .= "   - Identify major challenges faced throughout the OJT\n";
+    $prompt .= "   - Describe the problem-solving approach used\n";
+    $prompt .= "   - Explain what was learned from each challenge\n\n";
+    $prompt .= "6. CONCLUSION AND FUTURE APPLICATION (1-2 paragraphs)\n";
+    $prompt .= "   - Summarize the overall OJT experience\n";
+    $prompt .= "   - Discuss how this experience will benefit future career\n";
+    $prompt .= "   - Reflect on personal and professional transformation\n\n";
+    $prompt .= "WRITING GUIDELINES:\n";
+    $prompt .= "- Use formal, professional academic tone throughout\n";
+    $prompt .= "- Write in third person past tense (e.g., 'The intern developed...', 'Tasks were completed...')\n";
+    $prompt .= "- Avoid starting sentences with 'Today', 'This week', 'In this entry'\n";
+    $prompt .= "- Use varied sentence structures and rich vocabulary\n";
+    $prompt .= "- Include specific technical terms and industry jargon where appropriate\n";
+    $prompt .= "- Ensure smooth transitions between sections and paragraphs\n";
+    $prompt .= "- Provide concrete details rather than generic statements\n";
+    $prompt .= "- Target total length: 1500-2500 words (comprehensive documentation)\n";
+    $prompt .= "- Use clear section headings for organization\n\n";
+    $prompt .= "JOURNAL ENTRIES ({$totalDays} days from {$startDate} to {$endDate}):\n\n";
+    $prompt .= $contextText;
 
     try {
-        // Use user-specific API keys
+        // Use user-specific API keys with higher max_tokens for comprehensive output
         $messages = [
+            [
+                'role' => 'system',
+                'content' => 'You are an expert technical writer and academic documentation specialist. Create comprehensive, well-structured OJT narrative reports with detailed day-by-day coverage. Use formal professional tone and ensure thorough documentation of all activities, learnings, and professional growth.'
+            ],
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
         ];
-        
-        $narrative = callAIWithUserKeys($messages, QWEN_TEXT_MODEL);
+
+        $narrative = callAIWithUserKeys($messages, QWEN_TEXT_MODEL, ['max_tokens' => 4000]);
 
         jsonResponse([
             'success' => true,
             'narrative' => $narrative,
-            'entry_count' => count($entries)
+            'entry_count' => count($entries),
+            'total_days' => $totalDays,
+            'date_range' => [
+                'start' => $startDate,
+                'end' => $endDate
+            ],
+            'day_by_day' => $dayByDayEntries
         ]);
     } catch (Exception $e) {
         Logger::error('Narrative generation error', ['error' => $e->getMessage()]);
