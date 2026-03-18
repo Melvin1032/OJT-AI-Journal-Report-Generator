@@ -88,6 +88,9 @@ try {
         case 'updateDescription':
             updateDescription();
             break;
+        case 'enhanceEntry':
+            enhanceEntry();
+            break;
         case 'generateISPSCReport':
             generateISPSCReport();
             break;
@@ -535,6 +538,11 @@ function cleanDescription($text) {
         '/^Today,?\s+/i',
         '/^This week,?\s+/i',
         '/^On this day,?\s+/i',
+        '/^The intern\s+/i',
+        '/^The student\s+/i',
+        '/^The trainee\s+/i',
+        '/^The OJT student\s+/i',
+        '/^The OJT trainee\s+/i',
     ];
 
     foreach ($unwantedPatterns as $pattern) {
@@ -560,16 +568,20 @@ function cleanDescription($text) {
 }
 
 /**
- * Generate enhanced description combining user input and AI analysis
+ * Generate enhanced description combining user input and AI analysis with 2-3 paragraphs
  */
 function generateEnhancedDescription($userDescription, $aiDescriptions, $title) {
     if (empty($userDescription) && empty($aiDescriptions)) {
         return 'No description available';
     }
 
-    // If only AI descriptions, combine them
+    // Combine AI image descriptions for context
+    $imageContext = !empty($aiDescriptions) ? implode('. ', $aiDescriptions) : '';
+    
+    // ALWAYS use AI enhancement for 2-3 paragraph format
     if (empty($userDescription)) {
-        return implode(' ', $aiDescriptions);
+        // No user description - generate from image context and title only
+        return enhanceUserDescriptionWithAI($title, $title, $imageContext);
     }
 
     // If only user description, enhance it with AI
@@ -578,32 +590,39 @@ function generateEnhancedDescription($userDescription, $aiDescriptions, $title) 
     }
 
     // Combine user description with AI image analysis
-    $imageContext = implode('. ', $aiDescriptions);
-    $enhancedDescription = enhanceUserDescriptionWithAI($userDescription, $title, $imageContext);
-
-    return $enhancedDescription;
+    return enhanceUserDescriptionWithAI($userDescription, $title, $imageContext);
 }
 
 /**
- * Enhance user description using AI
+ * Enhance user description using AI with 2-3 paragraph format
  */
 function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = '') {
     try {
-        // Optimized prompt: direct, token-efficient, narrative best practices
-        $prompt = "Write a professional OJT journal entry in narrative form. Use past tense.\n\n";
-        $prompt .= "Entry Title: {$userDescription}\n";
+        // Enhanced prompt for 2-3 well-structured paragraphs
+        $prompt = "Write a comprehensive OJT journal entry in narrative form with exactly 2-3 well-structured paragraphs.\n\n";
+        $prompt .= "Entry Title: {$title}\n";
+        $prompt .= "User Description: {$userDescription}\n";
 
         if (!empty($imageContext)) {
-            $prompt .= "Image Context: {$imageContext}\n";
+            $prompt .= "Image Analysis Context: {$imageContext}\n";
         }
 
-        $prompt .= "\nGuidelines:\n";
-        $prompt .= "- Write in 2 paragraphs: (1) tasks accomplished and activities, (2) skills learned and insights\n";
-        $prompt .= "- Use THIRD PERSON or FIRST PERSON past tense (e.g., 'The intern developed...' or 'I developed...')\n";
-        $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this'\n";
-        $prompt .= "- Begin directly with the main activity or accomplishment\n";
-        $prompt .= "- Professional, formal tone suitable for academic documentation\n";
-        $prompt .= "- No titles, bullets, or section headers in the output\n";
+        $prompt .= "\nRequirements:\n";
+        $prompt .= "- Write exactly 2-3 substantial paragraphs (200-350 words total)\n";
+        $prompt .= "- Use clear paragraph breaks (double newline between paragraphs)\n";
+        $prompt .= "\nParagraph Structure:\n";
+        $prompt .= "Paragraph 1: Detailed account of tasks accomplished, activities performed, and specific work completed. Include technical details and methodologies used.\n";
+        $prompt .= "Paragraph 2: Skills developed, challenges encountered, problem-solving approaches, and lessons learned from the experience.\n";
+        $prompt .= "Paragraph 3 (if applicable): Connection to overall learning objectives, professional growth, and how this experience contributes to career development.\n";
+        $prompt .= "\nWriting Guidelines:\n";
+        $prompt .= "- Use THIRD PERSON past tense OR first person (e.g., 'Developed...', 'Completed...', 'I developed...', 'Tasks were completed...')\n";
+        $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this', 'The intern'\n";
+        $prompt .= "- Begin directly with action verbs or substantive content (e.g., 'Developed a web application...', 'Completed the database design...', 'Designed and implemented...')\n";
+        $prompt .= "- Professional, formal academic tone suitable for institutional submission\n";
+        $prompt .= "- Include specific technical details, tools, and concrete examples\n";
+        $prompt .= "- No titles, bullets, numbers, or section headers in the output\n";
+        $prompt .= "- Provide depth and substance with varied sentence structures\n";
+        $prompt .= "- Ensure smooth transitions between paragraphs\n";
 
         $requestData = [
             'messages' => [
@@ -612,14 +631,32 @@ function enhanceUserDescriptionWithAI($userDescription, $title, $imageContext = 
                     'content' => $prompt
                 ]
             ],
-            'max_tokens' => 250
+            'max_tokens' => 600
         ];
 
         // Use user-specific API keys
-        $result = callAIWithUserKeys($requestData['messages'], QWEN_TEXT_MODEL, ['max_tokens' => 250]);
+        $result = callAIWithUserKeys($requestData['messages'], QWEN_TEXT_MODEL, ['max_tokens' => 600]);
+
+        // Clean up the response
+        $result = cleanDescription($result);
         
-        return cleanDescription($result);
+        // Remove any markdown formatting
+        $result = preg_replace('/^\*\*[^*]+\*\*/m', '', $result); // Remove bold markers
+        $result = preg_replace('/^#+\s*/m', '', $result); // Remove headers
+        $result = preg_replace('/^-+\s*/m', '', $result); // Remove bullet points
+        $result = preg_replace('/^\d+\.\s*/m', '', $result); // Remove numbered lists
         
+        // Remove unwanted starting phrases
+        $result = preg_replace('/^The intern\s+/i', '', $result);
+        $result = preg_replace('/^The student\s+/i', '', $result);
+        $result = preg_replace('/^The trainee\s+/i', '', $result);
+        $result = preg_replace('/^The OJT student\s+/i', '', $result);
+        
+        // Ensure proper paragraph breaks
+        $result = preg_replace('/\n{3,}/', "\n\n", $result); // Normalize multiple newlines to double
+        
+        return trim($result);
+
     } catch (Exception $e) {
         error_log('Failed to enhance description: ' . $e->getMessage());
         // Return user description if AI fails
@@ -761,8 +798,7 @@ function updateDescription() {
     $data = json_decode(file_get_contents('php://input'), true);
     $id = $data['id'] ?? null;
     $description = $data['description'] ?? '';
-    $currentSession = session_id();
-
+    
     if (!$id) {
         jsonResponse(['error' => 'Invalid entry ID'], 400);
     }
@@ -772,14 +808,20 @@ function updateDescription() {
     }
 
     $pdo = getDbConnection();
+    $currentUserId = getCurrentUserId();
 
-    // Verify ownership before updating
-    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)");
+    // Require authentication
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
+    }
+
+    // Verify ownership using user_id
+    $stmt = $pdo->prepare("SELECT id FROM ojt_entries WHERE id = :id AND user_id = :user_id");
     $stmt->execute([
         ':id' => $id,
-        ':session_id' => $currentSession
+        ':user_id' => $currentUserId
     ]);
-    
+
     if (!$stmt->fetch()) {
         jsonResponse(['error' => 'Entry not found or you do not have permission to update it'], 404);
     }
@@ -790,20 +832,191 @@ function updateDescription() {
         UPDATE ojt_entries
         SET user_description = :description,
             ai_enhanced_description = :description
-        WHERE id = :id AND (session_id = :session_id OR session_id IS NULL)
+        WHERE id = :id AND user_id = :user_id
     ");
     $stmt->execute([
         ':description' => $description,
         ':id' => $id,
-        ':session_id' => $currentSession
+        ':user_id' => $currentUserId
     ]);
 
     jsonResponse(['success' => true]);
 }
 
 /**
+ * Enhance entry description with AI
+ * Provides multiple enhancement options with comprehensive narrative generation
+ */
+function enhanceEntry() {
+    // Check if user has API keys configured
+    $userKeys = getUserApiKeys();
+    if (empty($userKeys['openrouter']) && empty($userKeys['groq']) && empty($userKeys['gemini'])) {
+        jsonResponse(['error' => 'API keys not configured. Please go to Settings and enter your API keys.'], 500);
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
+    $id = $data['id'] ?? null;
+    $enhancementType = $data['enhancement_type'] ?? 'enhance';
+    $customPrompt = $data['custom_prompt'] ?? '';
+
+    if (!$id) {
+        jsonResponse(['error' => 'Invalid entry ID'], 400);
+    }
+
+    $pdo = getDbConnection();
+    $currentUserId = getCurrentUserId();
+
+    if (!$currentUserId) {
+        jsonResponse(['error' => 'User not authenticated'], 401);
+    }
+
+    // Get the entry
+    $stmt = $pdo->prepare("
+        SELECT e.*, 
+               GROUP_CONCAT(i.ai_description, ' ') as image_descriptions
+        FROM ojt_entries e
+        LEFT JOIN entry_images i ON e.id = i.entry_id AND i.user_id = :user_id
+        WHERE e.id = :id AND e.user_id = :user_id
+        GROUP BY e.id
+    ");
+    $stmt->execute([
+        ':id' => $id,
+        ':user_id' => $currentUserId
+    ]);
+    $entry = $stmt->fetch();
+
+    if (!$entry) {
+        jsonResponse(['error' => 'Entry not found or you do not have permission'], 404);
+    }
+
+    // Build comprehensive prompt based on enhancement type
+    $prompt = buildEnhancementPrompt($entry, $enhancementType, $customPrompt);
+
+    try {
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'You are an expert OJT journal writer. Create comprehensive, professional, and detailed journal entries with exactly 2-3 well-structured paragraphs. Use formal academic tone, third person past tense or first person, and include specific technical details. Write 200-400 words with clear paragraph breaks and smooth transitions. Start with action verbs, NOT with "The intern" or "The student".'
+            ],
+            [
+                'role' => 'user',
+                'content' => $prompt
+            ]
+        ];
+
+        $enhancedDescription = callAIWithUserKeys($messages, QWEN_TEXT_MODEL, ['max_tokens' => 2000]);
+
+        // Clean up the response
+        $enhancedDescription = cleanDescription($enhancedDescription);
+
+        // Update the database
+        $stmt = $pdo->prepare("
+            UPDATE ojt_entries
+            SET ai_enhanced_description = :description
+            WHERE id = :id AND user_id = :user_id
+        ");
+        $stmt->execute([
+            ':description' => $enhancedDescription,
+            ':id' => $id,
+            ':user_id' => $currentUserId
+        ]);
+
+        jsonResponse([
+            'success' => true,
+            'description' => $enhancedDescription,
+            'enhancement_type' => $enhancementType
+        ]);
+
+    } catch (Exception $e) {
+        Logger::error('Entry enhancement failed', ['error' => $e->getMessage()]);
+        jsonResponse(['error' => 'AI enhancement failed: ' . $e->getMessage()], 500);
+    }
+}
+
+/**
+ * Build enhancement prompt based on type with 2-3 paragraph structure
+ */
+function buildEnhancementPrompt($entry, $type, $customPrompt = '') {
+    $title = $entry['title'];
+    $userDesc = $entry['user_description'] ?: '';
+    $imageDescs = $entry['image_descriptions'] ?: '';
+    $entryDate = date('F j, Y', strtotime($entry['entry_date']));
+
+    $prompt = "Enhance this OJT journal entry with a COMPREHENSIVE, DETAILED narrative of exactly 2-3 well-structured paragraphs (250-400 words):\n\n";
+    $prompt .= "ENTRY TITLE: {$title}\n";
+    $prompt .= "DATE: {$entryDate}\n\n";
+
+    if ($userDesc) {
+        $prompt .= "ORIGINAL DESCRIPTION:\n{$userDesc}\n\n";
+    }
+
+    if ($imageDescs) {
+        $prompt .= "IMAGE CONTEXT:\n{$imageDescs}\n\n";
+    }
+
+    if ($customPrompt) {
+        $prompt .= "ADDITIONAL FOCUS: {$customPrompt}\n\n";
+    }
+
+    $prompt .= "\nParagraph Structure:\n";
+    $prompt .= "Paragraph 1: Tasks accomplished, activities performed, and specific work completed with technical details.\n";
+    $prompt .= "Paragraph 2: Skills developed, challenges encountered, problem-solving approaches, and lessons learned.\n";
+    $prompt .= "Paragraph 3 (if applicable): Connection to learning objectives, professional growth, and career development.\n\n";
+
+    switch ($type) {
+        case 'enhance':
+            $prompt .= "Enhancement Type: Improve and polish the existing description.\n";
+            $prompt .= "- Maintain the core content but enhance with professional language\n";
+            $prompt .= "- Add transitional phrases and better flow between paragraphs\n";
+            $prompt .= "- Include technical terminology where appropriate\n";
+            $prompt .= "- Expand on key points with more context and detail\n";
+            break;
+
+        case 'expand':
+            $prompt .= "Enhancement Type: Expand into a comprehensive, detailed narrative.\n";
+            $prompt .= "- Use all 3 paragraphs for maximum detail (300-400 words total)\n";
+            $prompt .= "- Provide specific examples and concrete details in each paragraph\n";
+            $prompt .= "- Connect activities to broader learning objectives\n";
+            break;
+
+        case 'rewrite':
+            $prompt .= "Enhancement Type: Create a fresh, professional description from scratch.\n";
+            $prompt .= "- Base it on the entry title and any available context\n";
+            $prompt .= "- Include realistic details appropriate for the entry type\n";
+            $prompt .= "- Focus on professional growth and skill development\n";
+            break;
+
+        case 'technical':
+            $prompt .= "Enhancement Type: Create a technically-focused description.\n";
+            $prompt .= "- Emphasize technologies, frameworks, and tools used in Paragraph 1\n";
+            $prompt .= "- Describe technical implementations and methodologies in Paragraph 2\n";
+            $prompt .= "- Explain technical challenges and solutions with specific terminology\n";
+            break;
+
+        default:
+            $prompt .= "Enhancement Type: Balanced professional narrative.\n";
+            $prompt .= "- Improve clarity and professionalism\n";
+            $prompt .= "- Add relevant details and context\n";
+            $prompt .= "- Maintain appropriate technical depth\n";
+    }
+
+    $prompt .= "\nWRITING GUIDELINES:\n";
+    $prompt .= "- Use THIRD PERSON past tense OR first person (e.g., 'Developed...', 'Completed...', 'I developed...', 'Tasks were completed...')\n";
+    $prompt .= "- NEVER start with 'Today', 'This week', 'In this entry', 'Here', 'During this', 'The intern', 'The student'\n";
+    $prompt .= "- Begin directly with action verbs or substantive content (e.g., 'Developed a web application...', 'Completed the database design...', 'Designed and implemented...')\n";
+    $prompt .= "- Use varied sentence structures and rich vocabulary\n";
+    $prompt .= "- Provide SPECIFIC details, not generic statements\n";
+    $prompt .= "- Target 250-400 words with exactly 2-3 paragraphs\n";
+    $prompt .= "- Use clear paragraph breaks (double newline between paragraphs)\n";
+    $prompt .= "- Formal academic tone suitable for institutional submission\n";
+    $prompt .= "- NO titles, bullets, numbers, or section headers in the output\n";
+
+    return $prompt;
+}
+
+/**
  * Generate AI-powered narrative report for all entries
- * Enhanced for comprehensive day-by-day documentation
+ * Enhanced for comprehensive day-by-day documentation with 2-3 paragraphs
  */
 function generateNarrativeReport() {
     // Check if user has API keys configured
@@ -844,106 +1057,52 @@ function generateNarrativeReport() {
         jsonResponse(['error' => 'No entries found'], 404);
     }
 
-    // Build detailed context from entries with full descriptions
+    // Build concise context from entries
     $entriesContext = [];
-    $dayByDayEntries = [];
-    
-    foreach ($entries as $index => $entry) {
-        $date = date('l, F j, Y', strtotime($entry['entry_date']));
-        $dayNumber = $index + 1;
-        $fullDesc = $entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description';
-        
-        $dayByDayEntries[] = [
-            'day' => $dayNumber,
-            'date' => $date,
-            'title' => $entry['title'],
-            'description' => $fullDesc
-        ];
-        
-        $entriesContext[] = "[Day {$dayNumber}] {$date} - {$entry['title']}\nDetails: {$fullDesc}";
+    foreach ($entries as $entry) {
+        $date = date('M j', strtotime($entry['entry_date']));
+        $desc = $entry['ai_enhanced_description'] ?: $entry['user_description'] ?: 'No description';
+        $entriesContext[] = "{$date}: {$entry['title']} - " . substr($desc, 0, 150);
     }
 
-    $contextText = implode("\n\n", $entriesContext);
-    $totalDays = count($entries);
+    $contextText = implode("\n", $entriesContext);
 
-    // Get date range
-    $startDate = date('F j, Y', strtotime($entries[0]['entry_date']));
-    $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
-
-    // Enhanced prompt for comprehensive day-by-day narrative
-    $prompt = "You are a professional technical writer specializing in OJT (On-the-Job Training) documentation.\n\n";
-    $prompt .= "TASK: Generate a comprehensive, well-documented OJT Narrative Report based on the journal entries below.\n\n";
-    $prompt .= "REPORT STRUCTURE:\n\n";
-    $prompt .= "1. EXECUTIVE SUMMARY (1 paragraph, 80-120 words)\n";
-    $prompt .= "   - Brief overview of the entire OJT period\n";
-    $prompt .= "   - Main focus areas and key accomplishments\n";
-    $prompt .= "   - Overall impact on professional development\n\n";
-    $prompt .= "2. WEEKLY PROGRESSION (detailed section)\n";
-    $prompt .= "   - Group entries by week (assume 5 working days per week)\n";
-    $prompt .= "   - For each week, write 2-3 paragraphs covering:\n";
-    $prompt .= "     • Week number and date range\n";
-    $prompt .= "     • Primary activities and tasks undertaken\n";
-    $prompt .= "     • Skills developed and competencies gained\n";
-    $prompt .= "     • Challenges encountered and solutions applied\n";
-    $prompt .= "     • Notable achievements or milestones\n\n";
-    $prompt .= "3. DAY-BY-DAY HIGHLIGHTS (comprehensive section)\n";
-    $prompt .= "   - For each day, provide a detailed paragraph (100-150 words) covering:\n";
-    $prompt .= "     • Specific tasks performed and methodologies used\n";
-    $prompt .= "     • Technical skills or tools applied\n";
-    $prompt .= "     • Learning outcomes and insights gained\n";
-    $prompt .= "     • Connection to previous days' work (show progression)\n";
-    $prompt .= "   - Write in chronological order\n";
-    $prompt .= "   - Use transitional phrases between days for flow\n\n";
-    $prompt .= "4. SKILLS AND COMPETENCIES DEVELOPED (analytical section)\n";
-    $prompt .= "   - Categorize skills into: Technical, Soft Skills, and Professional\n";
-    $prompt .= "   - Provide specific examples from the entries for each skill\n";
-    $prompt .= "   - Explain the progression from beginner to competent level\n\n";
-    $prompt .= "5. CHALLENGES AND SOLUTIONS (reflective section)\n";
-    $prompt .= "   - Identify major challenges faced throughout the OJT\n";
-    $prompt .= "   - Describe the problem-solving approach used\n";
-    $prompt .= "   - Explain what was learned from each challenge\n\n";
-    $prompt .= "6. CONCLUSION AND FUTURE APPLICATION (1-2 paragraphs)\n";
-    $prompt .= "   - Summarize the overall OJT experience\n";
-    $prompt .= "   - Discuss how this experience will benefit future career\n";
-    $prompt .= "   - Reflect on personal and professional transformation\n\n";
-    $prompt .= "WRITING GUIDELINES:\n";
-    $prompt .= "- Use formal, professional academic tone throughout\n";
-    $prompt .= "- Write in third person past tense (e.g., 'The intern developed...', 'Tasks were completed...')\n";
-    $prompt .= "- Avoid starting sentences with 'Today', 'This week', 'In this entry'\n";
-    $prompt .= "- Use varied sentence structures and rich vocabulary\n";
-    $prompt .= "- Include specific technical terms and industry jargon where appropriate\n";
-    $prompt .= "- Ensure smooth transitions between sections and paragraphs\n";
-    $prompt .= "- Provide concrete details rather than generic statements\n";
-    $prompt .= "- Target total length: 1500-2500 words (comprehensive documentation)\n";
-    $prompt .= "- Use clear section headings for organization\n\n";
-    $prompt .= "JOURNAL ENTRIES ({$totalDays} days from {$startDate} to {$endDate}):\n\n";
-    $prompt .= $contextText;
+    // Optimized prompt for 2-3 well-structured paragraphs
+    $prompt = "Write a comprehensive OJT weekly narrative report with exactly 2-3 paragraphs:\n\n";
+    $prompt .= "Paragraph 1 (Introduction & Activities): Introduce the week's focus and summarize the main activities performed. Discuss the tasks completed and skills applied.\n\n";
+    $prompt .= "Paragraph 2 (Learning & Challenges): Discuss the challenges encountered, how they were overcome, and the technical/professional skills developed during the immersion.\n\n";
+    $prompt .= "Paragraph 3 (Growth & Reflection - optional): Reflect on professional growth, insights gained, and how this experience contributes to career development.\n\n";
+    $prompt .= "Entries:\n{$contextText}\n\n";
+    $prompt .= "Requirements:\n";
+    $prompt .= "- Write exactly 2-3 well-developed paragraphs\n";
+    $prompt .= "- Use clear paragraph breaks (double newline)\n";
+    $prompt .= "- Professional and reflective tone\n";
+    $prompt .= "- 150-250 words total\n";
+    $prompt .= "- Do not include headings or labels like 'Paragraph 1'\n";
+    $prompt .= "- NEVER start with 'Today', 'This week', 'The intern', 'The student'\n";
+    $prompt .= "- Begin directly with substantive content\n";
 
     try {
-        // Use user-specific API keys with higher max_tokens for comprehensive output
+        // Use user-specific API keys
         $messages = [
-            [
-                'role' => 'system',
-                'content' => 'You are an expert technical writer and academic documentation specialist. Create comprehensive, well-structured OJT narrative reports with detailed day-by-day coverage. Use formal professional tone and ensure thorough documentation of all activities, learnings, and professional growth.'
-            ],
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
         ];
 
-        $narrative = callAIWithUserKeys($messages, QWEN_TEXT_MODEL, ['max_tokens' => 4000]);
+        $narrative = callAIWithUserKeys($messages, QWEN_TEXT_MODEL);
 
+        // Ensure proper paragraph formatting
+        $narrative = trim($narrative);
+        // Clean up any markdown or extra formatting
+        $narrative = preg_replace('/^\*\*[^*]+\*\*/m', '', $narrative); // Remove bold markers
+        $narrative = preg_replace('/^#+\s*/m', '', $narrative); // Remove headers
+        
         jsonResponse([
             'success' => true,
             'narrative' => $narrative,
-            'entry_count' => count($entries),
-            'total_days' => $totalDays,
-            'date_range' => [
-                'start' => $startDate,
-                'end' => $endDate
-            ],
-            'day_by_day' => $dayByDayEntries
+            'entry_count' => count($entries)
         ]);
     } catch (Exception $e) {
         Logger::error('Narrative generation error', ['error' => $e->getMessage()]);

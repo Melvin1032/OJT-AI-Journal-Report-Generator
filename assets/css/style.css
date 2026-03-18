@@ -235,6 +235,20 @@ body {
     border-style: solid;
     border-color: var(--success-color);
     background: rgba(16, 185, 129, 0.02);
+    justify-content: flex-start;
+    align-items: stretch;
+}
+
+.upload-area.has-files .upload-placeholder {
+    display: none;
+}
+
+.upload-area.has-files .preview-container {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 1rem;
 }
 
 .upload-placeholder {
@@ -1418,7 +1432,7 @@ body {
     color: #666;
 }
 
-/* Activities Table */
+/* Activities Table (kept for backward compatibility) */
 .report-activities-table {
     width: 100%;
     border-collapse: collapse;
@@ -1438,6 +1452,43 @@ body {
     font-weight: bold;
 }
 
+/* Entry List - Paragraph Style */
+.report-entries-list,
+.print-entries-list {
+    margin: 1rem 0;
+}
+
+.report-entry-item,
+.print-entry-item {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--primary-color);
+    border-radius: var(--border-radius-sm);
+}
+
+.report-entry-day,
+.print-entry-day {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.report-entry-title,
+.print-entry-title {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.report-entry-description,
+.print-entry-description {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
 /* Photo Appendix */
 .report-photo-appendix {
     display: grid;
@@ -1447,6 +1498,7 @@ body {
 }
 
 .report-photo-item {
+
     page-break-inside: avoid;
 }
 

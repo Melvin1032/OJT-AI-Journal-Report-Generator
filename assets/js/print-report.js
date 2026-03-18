@@ -705,22 +705,20 @@ async function handleDownloadWord() {
             <h3>Background of the Action Plan</h3>
             <p><em>[Describe the plan you created before starting the immersion]</em></p>
             <h3>Program of Activities – Per Day</h3>
-            <table>
-                <thead>
-                    <tr><th>Day/Date</th><th>Activity</th><th>Remarks</th></tr>
-                </thead>
-                <tbody>
-                    ${entries.map((entry, index) => {
-                        const date = new Date(entry.entry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                        return `
-                        <tr>
-                            <td>Day ${index + 1}<br>${date}</td>
-                            <td>${escapeHtml(entry.title)}</td>
-                            <td>${escapeHtml(entry.ai_enhanced_description || entry.user_description || 'No description')}</td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
+            <div style="margin: 15px 0;">
+                ${entries.map((entry, index) => {
+                    const entryDate = new Date(entry.entry_date);
+                    const dayName = entryDate.toLocaleDateString('en-US', { weekday: 'long' });
+                    const fullDate = entryDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                    return `
+                        <div style="margin-bottom: 12pt; page-break-inside: avoid;">
+                            <p style="margin: 0 0 4pt 0;"><strong>Day ${index + 1}</strong> - ${dayName}, ${fullDate}</p>
+                            <p style="margin: 0 0 4pt 0; font-weight: 600;">${escapeHtml(entry.title)}</p>
+                            <p style="margin: 0;">${escapeHtml(entry.ai_enhanced_description || entry.user_description || 'No description')}</p>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
 
             <h2>Chapter III: Conclusion and Recommendation</h2>
             <h3>Conclusion</h3>

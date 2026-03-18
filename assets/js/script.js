@@ -341,22 +341,27 @@ function processFiles(files) {
         return true;
     });
 
+    console.log('Adding', validFiles.length, 'files. Total files:', selectedFiles.length + validFiles.length);
     selectedFiles = [...selectedFiles, ...validFiles];
+    console.log('Selected files array:', selectedFiles.map(f => f.name));
     updatePreview();
 }
 
 /**
- * Update preview container
+ * Update preview container - shows all images
  */
 function updatePreview() {
+    if (!previewContainer) return;
+    
+    console.log('updatePreview called with', selectedFiles.length, 'files');
     previewContainer.innerHTML = '';
 
     if (selectedFiles.length === 0) {
-        uploadArea.classList.remove('has-files');
+        if (uploadArea) uploadArea.classList.remove('has-files');
         return;
     }
 
-    uploadArea.classList.add('has-files');
+    if (uploadArea) uploadArea.classList.add('has-files');
 
     selectedFiles.forEach((file, index) => {
         const reader = new FileReader();
@@ -367,13 +372,17 @@ function updatePreview() {
                 <img src="${e.target.result}" alt="Preview">
                 <button class="remove-btn" data-index="${index}">&times;</button>
             `;
+            console.log('Appending preview item', index, 'for file', file.name);
             previewContainer.appendChild(previewItem);
 
-            previewItem.querySelector('.remove-btn').addEventListener('click', (e) => {
-                e.stopPropagation();
-                const idx = parseInt(e.target.dataset.index);
-                removeFile(idx);
-            });
+            const removeBtn = previewItem.querySelector('.remove-btn');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(e.target.dataset.index);
+                    removeFile(idx);
+                });
+            }
         };
         reader.readAsDataURL(file);
     });
@@ -514,6 +523,13 @@ function createEntryCard(entry) {
                     ${entry.images ? entry.images.length : 0} image${entry.images && entry.images.length !== 1 ? 's' : ''}
                 </span>
                 <div class="entry-actions">
+                    <button class="entry-ai-enhance" data-id="${entry.id}" title="Enhance with AI">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </button>
                     <button class="entry-edit" data-id="${entry.id}" title="Edit description">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -543,6 +559,11 @@ function createEntryCard(entry) {
         editDescription(entry.id);
     });
 
+    // Add AI enhance listener
+    card.querySelector('.entry-ai-enhance').addEventListener('click', () => {
+        showAIEnhanceModal(entry.id, entry.title, entry.user_description, entry.ai_enhanced_description);
+    });
+
     // Add image click listeners for modal
     card.querySelectorAll('.ojt-entry-gallery img').forEach(img => {
         img.addEventListener('click', () => {
@@ -559,11 +580,20 @@ function createEntryCard(entry) {
 function editDescription(id) {
     const descParagraph = document.getElementById(`desc-${id}`);
     const editTextarea = document.getElementById(`edit-desc-${id}`);
-    const editActions = descParagraph.parentElement.nextElementSibling;
     
+    if (!descParagraph || !editTextarea) {
+        console.error('Edit elements not found for entry ID:', id);
+        showStatus('Error: Edit elements not found', 'error');
+        return;
+    }
+    
+    const editActions = descParagraph.closest('.description-container').nextElementSibling;
+
     descParagraph.style.display = 'none';
     editTextarea.style.display = 'block';
-    editActions.style.display = 'block';
+    if (editActions) {
+        editActions.style.display = 'block';
+    }
     editTextarea.focus();
 }
 
@@ -577,6 +607,13 @@ async function saveDescription(id) {
     if (!newDescription) {
         showStatus('Description cannot be empty', 'error');
         return;
+    }
+
+    const saveBtn = event?.target;
+    const originalText = saveBtn?.textContent || 'Save';
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
     }
 
     try {
@@ -596,16 +633,33 @@ async function saveDescription(id) {
 
         if (result.success) {
             const descParagraph = document.getElementById(`desc-${id}`);
+            const editTextarea = document.getElementById(`edit-desc-${id}`);
+            const editActions = descParagraph.closest('.description-container').nextElementSibling;
+            
+            // Update the description text
             descParagraph.textContent = newDescription;
             descParagraph.classList.add('enhanced');
-            cancelEdit(id);
+            
+            // Hide edit mode
+            editTextarea.style.display = 'none';
+            if (editActions) {
+                editActions.style.display = 'none';
+            }
+            descParagraph.style.display = 'block';
+            
             showStatus('Description updated successfully!', 'success');
             narrativeCache = null;
         } else {
             showStatus(result.error || 'Failed to update description', 'error');
         }
     } catch (error) {
+        console.error('Save description error:', error);
         showStatus('Network error: ' + error.message, 'error');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+        }
     }
 }
 
@@ -615,11 +669,19 @@ async function saveDescription(id) {
 function cancelEdit(id) {
     const descParagraph = document.getElementById(`desc-${id}`);
     const editTextarea = document.getElementById(`edit-desc-${id}`);
-    const editActions = descParagraph.parentElement.nextElementSibling;
     
+    if (!descParagraph || !editTextarea) {
+        console.error('Edit elements not found for entry ID:', id);
+        return;
+    }
+    
+    const editActions = descParagraph.closest('.description-container').nextElementSibling;
+
     descParagraph.style.display = 'block';
     editTextarea.style.display = 'none';
-    editActions.style.display = 'none';
+    if (editActions) {
+        editActions.style.display = 'none';
+    }
 }
 
 /**
@@ -627,7 +689,7 @@ function cancelEdit(id) {
  */
 function showImageModal(imageSrc) {
     let modal = document.querySelector('.image-modal');
-    
+
     if (!modal) {
         modal = document.createElement('div');
         modal.className = 'image-modal';
@@ -650,6 +712,186 @@ function showImageModal(imageSrc) {
 
     modal.querySelector('img').src = imageSrc;
     modal.classList.add('show');
+}
+
+/**
+ * Show AI Enhancement Modal
+ */
+function showAIEnhanceModal(entryId, title, currentDescription, enhancedDescription) {
+    const modal = document.createElement('div');
+    modal.className = 'ai-enhance-modal show';
+    modal.innerHTML = `
+        <div class="ai-enhance-overlay"></div>
+        <div class="ai-enhance-content">
+            <div class="ai-enhance-header">
+                <h3>✨ AI Enhancement Options</h3>
+                <button class="ai-enhance-close">&times;</button>
+            </div>
+            <div class="ai-enhance-body">
+                <div class="enhance-info">
+                    <p><strong>Entry:</strong> ${escapeHtml(title)}</p>
+                    <p><strong>Current Description:</strong> ${currentDescription ? escapeHtml(currentDescription.substring(0, 150)) + '...' : 'Not provided'}</p>
+                </div>
+
+                <div class="enhance-options">
+                    <h4>Select Enhancement Type:</h4>
+
+                    <div class="enhance-option-card" data-type="enhance">
+                        <div class="option-icon">🚀</div>
+                        <h5>Enhance Existing Description</h5>
+                        <p>Improve your current description with better wording, professional tone, and more details</p>
+                    </div>
+
+                    <div class="enhance-option-card" data-type="expand">
+                        <div class="option-icon">📖</div>
+                        <h5>Expand with More Narrative</h5>
+                        <p>Add comprehensive details, context, and professional documentation (recommended for longer reports)</p>
+                    </div>
+
+                    <div class="enhance-option-card" data-type="rewrite">
+                        <div class="option-icon">✍️</div>
+                        <h5>Rewrite Completely</h5>
+                        <p>Generate a fresh, professional description based on your entry title</p>
+                    </div>
+
+                    <div class="enhance-option-card" data-type="technical">
+                        <div class="option-icon">💻</div>
+                        <h5>Technical Focus</h5>
+                        <p>Emphasize technical skills, technologies used, and implementation details</p>
+                    </div>
+                </div>
+
+                <div class="enhance-custom-prompt">
+                    <label for="customPrompt">Additional Context (Optional):</label>
+                    <textarea id="customPrompt" rows="3" placeholder="Add any specific details you want the AI to focus on (e.g., 'Focus on teamwork', 'Mention the technologies used', 'Highlight problem-solving')"></textarea>
+                </div>
+            </div>
+            <div class="ai-enhance-footer">
+                <button class="btn btn-secondary ai-enhance-cancel">Cancel</button>
+                <button class="btn btn-primary ai-enhance-confirm" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    Enhance with AI
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let selectedType = null;
+
+    // Handle option selection
+    const optionCards = modal.querySelectorAll('.enhance-option-card');
+    optionCards.forEach((card) => {
+        card.addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            modal.querySelectorAll('.enhance-option-card').forEach(c => {
+                c.classList.remove('selected');
+            });
+            
+            card.classList.add('selected');
+            selectedType = card.dataset.type;
+            
+            const confirmBtn = modal.querySelector('.ai-enhance-confirm');
+            confirmBtn.disabled = false;
+        });
+    });
+
+    // Handle cancel
+    const cancelBtn = modal.querySelector('.ai-enhance-cancel');
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            closeModal();
+        });
+    }
+
+    const closeBtn = modal.querySelector('.ai-enhance-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            closeModal();
+        });
+    }
+
+    const overlay = modal.querySelector('.ai-enhance-overlay');
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            closeModal();
+        });
+    }
+
+    // Handle confirm
+    const confirmBtn = modal.querySelector('.ai-enhance-confirm');
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            if (!selectedType) {
+                showStatus('Please select an enhancement type', 'error');
+                return;
+            }
+
+            const customPrompt = modal.querySelector('#customPrompt')?.value.trim() || '';
+            
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="btn-loader"></span> Enhancing...';
+
+            try {
+                await enhanceEntryWithAI(entryId, selectedType, customPrompt);
+                closeModal();
+                showStatus('Entry enhanced successfully!', 'success');
+                await loadWeeklyEntries();
+            } catch (error) {
+                showStatus('AI enhancement failed: ' + error.message, 'error');
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                        <path d="M2 17l10 5 10-5"/>
+                        <path d="M2 12l10 5 10-5"/>
+                    </svg>
+                    Enhance with AI
+                `;
+            }
+        });
+    }
+    
+    function closeModal() {
+        modal.classList.remove('show');
+        setTimeout(() => {
+            modal.remove();
+        }, 300);
+    }
+}
+
+/**
+ * Enhance entry with AI
+ */
+async function enhanceEntryWithAI(entryId, enhancementType, customPrompt = '') {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    const response = await fetch('src/process.php?action=enhanceEntry', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken || ''
+        },
+        body: JSON.stringify({
+            id: entryId,
+            enhancement_type: enhancementType,
+            custom_prompt: customPrompt
+        })
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error(result.error || 'Enhancement failed');
+    }
+
+    return result;
 }
 
 /**
@@ -1035,24 +1277,21 @@ function displayDownloadReport(report) {
                 </div>
 
                 <h3 class="report-section-title">Program of Activities – Per Day</h3>
-                <table class="report-activities-table">
-                    <thead>
-                        <tr>
-                            <th>Day/Date</th>
-                            <th>Activity</th>
-                            <th>Remarks</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${entries.map((entry, index) => `
-                            <tr>
-                                <td>Day ${index + 1}<br>${new Date(entry.entry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                                <td>${escapeHtml(entry.title)}</td>
-                                <td>${escapeHtml(entry.user_description || 'No description')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="report-entries-list">
+                    ${entries.map((entry, index) => {
+                        const entryDate = new Date(entry.entry_date);
+                        const dayName = entryDate.toLocaleDateString('en-US', { weekday: 'long' });
+                        const fullDate = entryDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                        const description = entry.ai_enhanced_description || entry.user_description || 'No description';
+                        return `
+                            <div class="report-entry-item">
+                                <p class="report-entry-day"><strong>Day ${index + 1}</strong> - ${dayName}, ${fullDate}</p>
+                                <p class="report-entry-title">${escapeHtml(entry.title)}</p>
+                                <p class="report-entry-description">${escapeHtml(description)}</p>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
 
                 <h3 class="report-section-title">Evaluation of Result</h3>
                 <div class="report-placeholder">
@@ -1103,13 +1342,31 @@ function displayDownloadReport(report) {
 
                 <h3 class="report-section-title">Photo Documentation</h3>
                 <div class="report-photo-appendix">
-                    ${entries.filter(e => e.images && e.images.length > 0).map(entry => `
-                        <div class="report-photo-item">
-                            <img src="${entry.images[0]}" alt="${escapeHtml(entry.title)}" />
-                            <p class="report-photo-caption">Figure: ${escapeHtml(entry.title)}</p>
-                            <p class="report-photo-date">${new Date(entry.entry_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-                        </div>
-                    `).join('')}
+                    ${(() => {
+                        const photoEntries = entries.filter(e => e.images && e.images.length > 0);
+                        return photoEntries.map((entry, idx) => {
+                            if (idx % 2 === 0) {
+                                const nextEntry = photoEntries[idx + 1];
+                                return `
+                                    <div class="report-photo-row">
+                                        <div class="report-photo-item">
+                                            <img src="${entry.images[0]}" alt="${escapeHtml(entry.title)}" />
+                                            <p class="report-photo-caption">Figure: ${escapeHtml(entry.title)}</p>
+                                            <p class="report-photo-date">${new Date(entry.entry_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                        </div>
+                                        ${nextEntry ? `
+                                        <div class="report-photo-item">
+                                            <img src="${nextEntry.images[0]}" alt="${escapeHtml(nextEntry.title)}" />
+                                            <p class="report-photo-caption">Figure: ${escapeHtml(nextEntry.title)}</p>
+                                            <p class="report-photo-date">${new Date(nextEntry.entry_date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                        </div>
+                                        ` : '<div class="report-photo-item"></div>'}
+                                    </div>
+                                `;
+                            }
+                            return '';
+                        }).join('');
+                    })()}
                 </div>
             </div>
         </div>
@@ -1217,24 +1474,21 @@ function handlePrintDownloadReport() {
                 </div>
 
                 <h3 class="print-section-title">Program of Activities – Per Day</h3>
-                <table class="print-activities-table">
-                    <thead>
-                        <tr>
-                            <th>Day/Date</th>
-                            <th>Activity</th>
-                            <th>Remarks</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${entries.map((entry, index) => `
-                            <tr>
-                                <td>Day ${index + 1}<br>${new Date(entry.entry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                                <td>${escapeHtml(entry.title)}</td>
-                                <td>${escapeHtml(entry.user_description || 'No description')}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                <div class="print-entries-list">
+                    ${entries.map((entry, index) => {
+                        const entryDate = new Date(entry.entry_date);
+                        const dayName = entryDate.toLocaleDateString('en-US', { weekday: 'long' });
+                        const fullDate = entryDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+                        const description = entry.ai_enhanced_description || entry.user_description || 'No description';
+                        return `
+                            <div class="print-entry-item">
+                                <p class="print-entry-day"><strong>Day ${index + 1}</strong> - ${dayName}, ${fullDate}</p>
+                                <p class="print-entry-title">${escapeHtml(entry.title)}</p>
+                                <p class="print-entry-description">${escapeHtml(description)}</p>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
 
                 <h3 class="print-section-title">Evaluation of Result</h3>
                 <div class="print-placeholder">

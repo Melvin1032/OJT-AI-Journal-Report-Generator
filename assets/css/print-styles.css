@@ -276,7 +276,7 @@
     color: #666;
 }
 
-/* Activities Table */
+/* Activities Table (kept for backward compatibility) */
 .report-activities-table {
     width: 100%;
     border-collapse: collapse;
@@ -303,6 +303,43 @@
 
 .report-activities-table td:nth-child(2) {
     width: 35%;
+}
+
+/* Entry List - Paragraph Style for Print */
+.report-entries-list,
+.print-entries-list {
+    margin: 1rem 0;
+}
+
+.report-entry-item,
+.print-entry-item {
+    margin-bottom: 1.5rem;
+    padding: 0.75rem;
+    background: #f9fafb;
+    border-left: 3px solid #2563eb;
+    page-break-inside: avoid;
+}
+
+.report-entry-day,
+.print-entry-day {
+    font-size: 9pt;
+    color: #64748b;
+    margin-bottom: 0.35rem;
+}
+
+.report-entry-title,
+.print-entry-title {
+    font-weight: 600;
+    font-size: 10.5pt;
+    color: #0f172a;
+    margin-bottom: 0.35rem;
+}
+
+.report-entry-description,
+.print-entry-description {
+    font-size: 10pt;
+    color: #334155;
+    line-height: 1.5;
 }
 
 .report-activities-table td:nth-child(3) {

@@ -198,157 +198,104 @@ class NarrativeAgent extends BaseAgent {
         $endDate = date('F j, Y', strtotime(end($entries)['entry_date']));
 
         // Build comprehensive prompt based on narrative type
-        $prompt = $this->buildComprehensiveNarrativePrompt($type, $entriesContext, $themes, $studentInfo, $totalDays, $startDate, $endDate);
+        $prompt = $this->buildNarrativePrompt($type, $entriesContext, $themes, $studentInfo);
 
-        $systemMessage = $this->getEnhancedSystemMessageForType($type);
+        $systemMessage = $this->getSystemMessageForType($type);
 
-        $narrative = $this->callAI($prompt, $systemMessage, ['max_tokens' => 4000]);
+        $narrative = $this->callAI($prompt, $systemMessage);
 
         $this->remember('generated_narrative', $narrative);
         return $narrative;
     }
 
     /**
-     * Build comprehensive prompt for detailed narrative generation
+     * Build prompt based on narrative type
      */
-    private function buildComprehensiveNarrativePrompt(string $type, array $entries, array $themes, ?array $studentInfo, int $totalDays, string $startDate, string $endDate): string {
+    private function buildNarrativePrompt(string $type, array $entries, array $themes, ?array $studentInfo): string {
         $prompt = "";
 
         // Add student context if available
         if ($studentInfo) {
-            $prompt .= "INTERN CONTEXT:\n";
-            $prompt .= "Student: {$studentInfo['name']}\n";
-            $prompt .= "Company: {$studentInfo['company_name']}\n";
+            $prompt .= "Student: {$studentInfo['name']} at {$studentInfo['company_name']}\n";
             $prompt .= "Role: {$studentInfo['position']}\n\n";
         }
 
-        // Add OJT period info
-        $prompt .= "OJT PERIOD: {$totalDays} days ({$startDate} to {$endDate})\n\n";
+        // Add entries
+        $prompt .= "JOURNAL ENTRIES:\n" . implode("\n", $entries) . "\n\n";
 
-        // Add journal entries
-        $prompt .= "JOURNAL ENTRIES:\n" . implode("\n\n", $entries) . "\n\n";
-
-        // Add identified themes
+        // Add themes
         $prompt .= "IDENTIFIED THEMES:\n";
-        $prompt .= "- Main Themes: " . implode(', ', $themes['themes'] ?? []) . "\n";
-        $prompt .= "- Skills Developed: " . implode(', ', $themes['skills'] ?? []) . "\n";
-        $prompt .= "- Challenges Faced: " . implode(', ', $themes['challenges'] ?? []) . "\n\n";
+        $prompt .= "- Themes: " . implode(', ', $themes['themes'] ?? []) . "\n";
+        $prompt .= "- Skills: " . implode(', ', $themes['skills'] ?? []) . "\n\n";
 
-        // Comprehensive report structure
-        $prompt .= "TASK: Generate a comprehensive, professionally documented OJT Narrative Report.\n\n";
-        $prompt .= "REQUIRED REPORT STRUCTURE:\n\n";
-        
-        $prompt .= "### 1. EXECUTIVE SUMMARY (1 substantial paragraph, 100-150 words)\n";
-        $prompt .= "Provide a high-level overview of the entire OJT experience including:\n";
-        $prompt .= "- The organization and duration of immersion\n";
-        $prompt .= "- Primary focus areas and main responsibilities\n";
-        $prompt .= "- Key accomplishments and their significance\n";
-        $prompt .= "- Overall impact on professional development and career readiness\n\n";
+        // Type-specific instructions
+        switch ($type) {
+            case 'weekly_summary':
+                $prompt .= "Write a WEEKLY SUMMARY narrative:\n";
+                $prompt .= "- Paragraph 1: Overview of activities this week\n";
+                $prompt .= "- Paragraph 2: Skills developed and progress made\n";
+                $prompt .= "- Paragraph 3: Challenges encountered and how they were addressed\n";
+                $prompt .= "Keep it professional, 150-200 words.\n";
+                break;
 
-        $prompt .= "### 2. WEEKLY PROGRESSION ANALYSIS (2-3 paragraphs per week)\n";
-        $prompt .= "Organize the OJT experience into weeks (assume 5 working days per week).\n";
-        $prompt .= "For EACH week, provide detailed coverage:\n";
-        $prompt .= "- **Week Number and Date Range** (e.g., \"Week 1: January 6-10, 2025\")\n";
-        $prompt .= "- **Primary Activities**: Main tasks, projects, and responsibilities undertaken\n";
-        $prompt .= "- **Skills Development**: Specific technical and soft skills acquired or enhanced\n";
-        $prompt .= "- **Challenges and Solutions**: Obstacles encountered and problem-solving approaches\n";
-        $prompt .= "- **Key Achievements**: Notable accomplishments, completed milestones, or recognition\n";
-        $prompt .= "- **Learning Insights**: Important realizations or connections to academic knowledge\n\n";
+            case 'final_report':
+                $prompt .= "Write a FINAL REPORT narrative:\n";
+                $prompt .= "- Summarize the entire OJT experience\n";
+                $prompt .= "- Highlight major accomplishments and learning outcomes\n";
+                $prompt .= "- Discuss overall growth and future applications\n";
+                $prompt .= "Professional tone, 250-300 words.\n";
+                break;
 
-        $prompt .= "### 3. DAY-BY-DAY DETAILED ACCOUNT (100-150 words per day)\n";
-        $prompt .= "For EACH day in the journal, write a comprehensive paragraph covering:\n";
-        $prompt .= "- **Specific Tasks**: Detailed description of activities performed and methodologies used\n";
-        $prompt .= "- **Technical Application**: Tools, technologies, frameworks, or systems utilized\n";
-        $prompt .= "- **Learning Outcomes**: New knowledge gained, skills practiced, or concepts understood\n";
-        $prompt .= "- **Professional Growth**: How this day contributed to overall development\n";
-        $prompt .= "- **Continuity**: Reference to previous days' work to show progression and building complexity\n";
-        $prompt .= "Write in chronological order with smooth transitional phrases between days.\n\n";
+            case 'reflective':
+                $prompt .= "Write a REFLECTIVE narrative:\n";
+                $prompt .= "- Personal insights and learnings\n";
+                $prompt .= "- How experiences changed perspectives\n";
+                $prompt .= "- Connection between theory and practice\n";
+                $prompt .= "Thoughtful and introspective tone, 200-250 words.\n";
+                break;
 
-        $prompt .= "### 4. SKILLS AND COMPETENCIES FRAMEWORK (analytical breakdown)\n";
-        $prompt .= "Categorize and analyze all skills developed during the OJT:\n";
-        $prompt .= "- **Technical Skills**: Programming languages, software tools, frameworks, methodologies\n";
-        $prompt .= "  • For each skill, specify the proficiency level achieved and provide concrete examples\n";
-        $prompt .= "- **Soft Skills**: Communication, teamwork, time management, adaptability, leadership\n";
-        $prompt .= "  • Illustrate with specific situations where these skills were demonstrated\n";
-        $prompt .= "- **Professional Competencies**: Work ethic, problem-solving, critical thinking, industry awareness\n";
-        $prompt .= "  • Explain how these were developed through real-world experience\n";
-        $prompt .= "Show progression from initial skill level to competent application.\n\n";
+            case 'technical_focus':
+                $prompt .= "Write a TECHNICAL narrative:\n";
+                $prompt .= "- Focus on technical skills and technologies used\n";
+                $prompt .= "- Specific tasks and implementations\n";
+                $prompt .= "- Technical challenges and solutions\n";
+                $prompt .= "Detailed and technical tone, 200-250 words.\n";
+                break;
 
-        $prompt .= "### 5. CHALLENGES, PROBLEM-SOLVING, AND LESSONS LEARNED (reflective analysis)\n";
-        $prompt .= "Identify and analyze significant challenges faced:\n";
-        $prompt .= "- **Challenge Description**: What made it difficult? (technical complexity, time pressure, knowledge gaps)\n";
-        $prompt .= "- **Problem-Solving Approach**: Steps taken to address the challenge\n";
-        $prompt .= "- **Resources Utilized**: Documentation, mentors, online resources, collaboration\n";
-        $prompt .= "- **Resolution**: How was it ultimately resolved?\n";
-        $prompt .= "- **Lessons Learned**: What insights were gained? How did it contribute to growth?\n\n";
+            case 'growth_focus':
+                $prompt .= "Write a GROWTH-FOCUSED narrative:\n";
+                $prompt .= "- Personal and professional development\n";
+                $prompt .= "- Skills progression over time\n";
+                $prompt .= "- Confidence and competence growth\n";
+                $prompt .= "Encouraging and positive tone, 200-250 words.\n";
+                break;
 
-        $prompt .= "### 6. CONCLUSION AND FUTURE APPLICATION (1-2 substantial paragraphs)\n";
-        $prompt .= "Provide a comprehensive conclusion:\n";
-        $prompt .= "- **Overall Experience Summary**: Holistic view of the OJT journey\n";
-        $prompt .= "- **Career Impact**: How this experience shapes career goals and direction\n";
-        $prompt .= "- **Future Application**: How will these learnings be applied in future endeavors?\n";
-        $prompt .= "- **Professional Transformation**: Reflection on growth from start to finish\n";
-        $prompt .= "- **Recommendations**: Advice for future OJT students or improvements to the program\n\n";
-
-        $prompt .= "WRITING STANDARDS AND GUIDELINES:\n";
-        $prompt .= "✓ **Tone**: Formal, professional, academic writing suitable for institutional documentation\n";
-        $prompt .= "✓ **Perspective**: Third person past tense (e.g., 'The intern developed...', 'Tasks were completed...')\n";
-        $prompt .= "✓ **Language**: Rich vocabulary, varied sentence structures, industry-appropriate terminology\n";
-        $prompt .= "✓ **Specificity**: Use concrete details, specific technologies, actual project names from the entries\n";
-        $prompt .= "✓ **Flow**: Smooth transitions between sections, paragraphs, and individual days\n";
-        $prompt .= "✓ **Depth**: Provide thorough analysis, not just surface-level descriptions\n";
-        $prompt .= "✓ **Evidence**: Support claims with specific examples from the journal entries\n";
-        $prompt .= "✓ **Avoid**: Generic statements, repetitive phrases, starting with 'Today' or 'This week'\n";
-        $prompt .= "✓ **Length**: Target 1500-2500 words for comprehensive documentation\n";
-        $prompt .= "✓ **Formatting**: Use clear section headings, proper paragraph breaks, and professional formatting\n\n";
-
-        // Type-specific emphasis
-        $prompt .= $this->getTypeSpecificInstructions($type);
+            default:
+                $prompt .= "Write a STANDARD narrative:\n";
+                $prompt .= "- Summarize activities and experiences\n";
+                $prompt .= "- Highlight key learnings\n";
+                $prompt .= "Professional tone, 150-200 words.\n";
+        }
 
         return $prompt;
     }
 
     /**
-     * Get type-specific instructions for narrative
+     * Get system message for narrative type
      */
-    private function getTypeSpecificInstructions(string $type): string {
-        switch ($type) {
-            case 'weekly_summary':
-                return "EMPHASIS: Focus on weekly progression and cumulative learning. Highlight how each week built upon the previous one.\n\n";
-            
-            case 'final_report':
-                return "EMPHASIS: Provide comprehensive coverage suitable for final submission. Include all major projects, achievements, and transformative moments. This is the definitive account of the OJT experience.\n\n";
-            
-            case 'reflective':
-                return "EMPHASIS: Emphasize personal insights, internal growth, and perspective changes. Include deeper reflection on how experiences challenged assumptions and shaped professional identity.\n\n";
-            
-            case 'technical_focus':
-                return "EMPHASIS: Prioritize technical depth. Detail specific technologies, architectures, algorithms, and implementations. Include technical challenges and their solutions. Use appropriate technical terminology.\n\n";
-            
-            case 'growth_focus':
-                return "EMPHASIS: Highlight the transformation arc. Show clear before/after comparisons of skills and confidence. Emphasize moments of breakthrough learning and increasing independence.\n\n";
-            
-            default:
-                return "EMPHASIS: Provide balanced coverage of all aspects: activities, learning, challenges, and growth. Maintain comprehensive documentation standards.\n\n";
-        }
-    }
-
-    /**
-     * Get enhanced system message for narrative type
-     */
-    private function getEnhancedSystemMessageForType(string $type): string {
+    private function getSystemMessageForType(string $type): string {
         $messages = [
-            'weekly_summary' => 'You are a professional academic writer specializing in OJT documentation. Create detailed weekly progress reports with comprehensive day-by-day coverage. Use formal tone and ensure thorough documentation.',
-            'final_report' => 'You are an expert technical writer creating definitive OJT final reports. Produce comprehensive, publication-quality documentation suitable for academic submission. Include all major achievements and detailed analysis.',
-            'reflective' => 'You are a reflective writing coach and career counselor. Help students articulate deep learnings and personal transformation. Balance professional tone with meaningful introspection.',
-            'technical_focus' => 'You are a senior technical writer with industry expertise. Create detailed technical documentation that demonstrates deep understanding of technologies and methodologies used.',
-            'growth_focus' => 'You are a career development specialist. Highlight transformation, skill progression, and increasing professional maturity. Emphasize growth milestones.',
-            'standard' => 'You are a professional academic documentation specialist. Create comprehensive, well-structured OJT narrative reports with detailed coverage of all activities, learnings, and professional development.'
+            'weekly_summary' => 'You are a professional report writer. Create concise weekly summaries.',
+            'final_report' => 'You are a professional report writer. Create comprehensive final reports.',
+            'reflective' => 'You are a reflective writing coach. Help students articulate their learnings.',
+            'technical_focus' => 'You are a technical writer. Focus on technical details and implementations.',
+            'growth_focus' => 'You are a career development coach. Highlight growth and development.',
+            'standard' => 'You are a professional report writer. Create clear, well-structured narratives.'
         ];
 
         return $messages[$type] ?? $messages['standard'];
     }
-    
+
     /**
      * Quality check for generated narrative
      */
@@ -366,16 +313,16 @@ class NarrativeAgent extends BaseAgent {
         $prompt .= "- feedback: string with improvement suggestions if needed\n";
         $prompt .= "- needs_revision: boolean\n\n";
         $prompt .= "Return ONLY valid JSON.";
-        
+
         $response = $this->callAI($prompt, "You are a quality reviewer. Return only JSON.");
-        
+
         if (preg_match('/\{.*\}/s', $response, $matches)) {
             $parsed = json_decode($matches[0], true);
             if (json_last_error() === JSON_ERROR_NONE) {
                 return $parsed;
             }
         }
-        
+
         return [
             'passed' => true,
             'score' => 7,
@@ -383,7 +330,7 @@ class NarrativeAgent extends BaseAgent {
             'needs_revision' => false
         ];
     }
-    
+
     /**
      * Revise narrative based on feedback
      */
@@ -392,7 +339,7 @@ class NarrativeAgent extends BaseAgent {
         $prompt .= "ORIGINAL:\n{$narrative}\n\n";
         $prompt .= "FEEDBACK:\n{$feedback}\n\n";
         $prompt .= "Provide an improved version that addresses the feedback.";
-        
+
         return $this->callAI($prompt, "You are an editor. Improve the narrative based on feedback.");
     }
 }
