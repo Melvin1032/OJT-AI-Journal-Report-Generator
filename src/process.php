@@ -663,9 +663,22 @@ function getWeeklyReport() {
         // Convert image paths to use image server (for InfinityFree compatibility)
         foreach ($images as &$image) {
             // Extract just the filename from the path
-            $filename = basename($image['image_path']);
-            // Use image server URL
-            $image['image_url'] = 'src/serve-image.php?file=' . urlencode($filename);
+            // Handle both Unix (/) and Windows (\) separators
+            $imagePath = str_replace('\\', '/', $image['image_path']);
+            $filename = basename($imagePath);
+            
+            // Use absolute image server URL (works on InfinityFree)
+            // serve-image.php is in the same directory as process.php (src/)
+            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+            $scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+            // Normalize script directory - handle root directory case
+            $scriptDir = rtrim($scriptDir, '/');
+            if ($scriptDir === '/' || $scriptDir === '') {
+                $scriptDir = '';
+            }
+            // serve-image.php is in the same directory as this script
+            $image['image_url'] = $protocol . '://' . $host . ($scriptDir ? '/' . ltrim($scriptDir, '/') : '') . '/serve-image.php?file=' . urlencode($filename);
         }
         
         $entry['images'] = $images;

@@ -7,25 +7,23 @@
 </Files>
 
 # Block access to database files
-<Files "*.db">
+<FilesMatch "\.db$">
     Order allow,deny
     Deny from all
-</Files>
+</FilesMatch>
 
 # Block access to log files
-<Files "*.log">
+<FilesMatch "\.log$">
     Order allow,deny
     Deny from all
-</Files>
+</FilesMatch>
 
-# Block access to cache files
-<Files "*">
-    Order allow,deny
-    Deny from all
-</Files>
-
-# Allow access to uploads directory only
-<Directory "uploads">
-    Order allow,deny
-    Allow from all
-</Directory>
+# Block access to cache files (but NOT in uploads subdirectory)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Allow uploads directory
+    RewriteCond %{REQUEST_URI} !^/storage/uploads/
+    # Block cache files
+    RewriteCond %{REQUEST_URI} ^/storage/cache/
+    RewriteRule .* - [F,L]
+</IfModule>

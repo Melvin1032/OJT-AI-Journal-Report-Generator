@@ -1,54 +1,69 @@
 <?php
 /**
- * Image Server Script
+ * Image Server Script - InfinityFree Version
  * Serves uploaded images securely
- * 
- * Usage: <img src="src/serve-image.php?file=filename.jpg">
  */
 
-session_start();
-require_once __DIR__ . '/../config/config.php';
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 
-// Get filename from query parameter
+// Get filename
 $filename = $_GET['file'] ?? '';
+if (empty($filename)) die('No filename provided');
+$filename = basename($filename); // Security: extract only filename
 
-// Validate filename - only allow safe characters
-if (empty($filename) || !preg_match('/^[a-zA-Z0-9_\-\.]+$/', $filename)) {
-    http_response_code(400);
-    die('Invalid filename');
+// InfinityFree path: __DIR__ = /home/vol1_4/infinityfree.com/if0_41388641/htdocs/src
+// So dirname(__DIR__) = /home/vol1_4/infinityfree.com/if0_41388641/htdocs
+$baseDir = dirname(__DIR__);
+$uploadDir = $baseDir . '/storage/uploads';
+
+// Try multiple possible paths
+$possiblePaths = [
+    $uploadDir . '/' . $filename,                      // /htdocs/storage/uploads/filename
+    __DIR__ . '/storage/uploads/' . $filename,         // /htdocs/src/storage/uploads/filename
+];
+
+// Also try with DOCUMENT_ROOT
+if (isset($_SERVER['DOCUMENT_ROOT'])) {
+    $possiblePaths[] = $_SERVER['DOCUMENT_ROOT'] . '/storage/uploads/' . $filename;
 }
 
-// Prevent directory traversal
-if (strpos($filename, '..') !== false || strpos($filename, '/') !== false || strpos($filename, '\\') !== false) {
-    http_response_code(403);
-    die('Access denied');
+$filePath = null;
+foreach ($possiblePaths as $path) {
+    if ($path && file_exists($path)) {
+        $filePath = $path;
+        error_log("serve-image: FOUND at $path");
+        break;
+    }
+    error_log("serve-image: NOT found at $path");
 }
 
-// Build file path
-$filePath = UPLOAD_DIR . $filename;
-
-// Check if file exists
-if (!file_exists($filePath)) {
+if (!$filePath) {
     http_response_code(404);
-    die('Image not found');
+    error_log("serve-image: File not found: $filename");
+    error_log("serve-image: Upload dir ($uploadDir) exists: " . (is_dir($uploadDir) ? 'yes' : 'no'));
+    if (is_dir($uploadDir)) {
+        $files = scandir($uploadDir);
+        $imageFiles = array_values(array_filter($files, function($f) {
+            return preg_match('/\.(jpg|jpeg|png|gif|webp)$/i', $f);
+        }));
+        error_log("serve-image: Images in dir (" . count($imageFiles) . "): " . implode(', ', array_slice($imageFiles, 0, 10)));
+    }
+    die('Image not found: ' . $filename);
 }
 
-// Verify file is an image
+// Verify it's an image
 $imageInfo = getimagesize($filePath);
 if (!$imageInfo) {
     http_response_code(403);
     die('Not a valid image');
 }
 
-// Set appropriate content type
+// Serve the image
 header('Content-Type: ' . $imageInfo['mime']);
 header('Content-Length: ' . filesize($filePath));
-header('Cache-Control: public, max-age=31536000'); // Cache for 1 year
-
-// For InfinityFree: Add headers to prevent blocking
+header('Cache-Control: public, max-age=31536000');
 header('Access-Control-Allow-Origin: *');
 header('X-Content-Type-Options: nosniff');
-
-// Output the image
 readfile($filePath);
 exit;
